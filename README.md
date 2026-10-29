@@ -1,6 +1,6 @@
 # Vatia v2
 
-Web app per nutrizionisti: gestione pazienti, piani alimentari, diario, database alimenti, calendario e insight. Il progetto nasce dal motore di Vatia e introduce flussi ispirati all'analisi di Foodnoms, mantenendo i colori teal/emerald di Vatia.
+Web app per nutrizionisti: gestione pazienti, piani alimentari, diario, database alimenti, calendario e insight. Il progetto nasce dal motore di Vatia e introduce flussi ispirati, mantenendo i colori teal/emerald di Vatia.
 
 ## Sviluppo locale
 
