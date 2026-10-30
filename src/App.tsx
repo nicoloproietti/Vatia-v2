@@ -33,6 +33,7 @@ export default function App() {
   const [page, setPage] = useState<Page>('oggi')
   const [selectedPatientId, setSelectedPatientId] = useState('')
   const [activePlan, setActivePlan] = useState<DietPlan | null>(null)
+  const [builderDirty, setBuilderDirty] = useState(false)
   const [newPatientOpen, setNewPatientOpen] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
   const [dark, setDark] = useState(() => localStorage.getItem('vatia-v2-dark') === 'true')
@@ -50,21 +51,27 @@ export default function App() {
 
   useEffect(() => { if (!toast) return; const timeout = window.setTimeout(() => setToast(''), 4200); return () => window.clearTimeout(timeout) }, [toast])
 
-  function navigate(next: Page) { setActivePlan(null); setPage(next); setMobileNav(false) }
+  function navigate(next: Page) {
+    if (activePlan && builderDirty && !window.confirm('Lasciare il builder? Le modifiche non salvate andranno perse.')) return
+    setActivePlan(null); setBuilderDirty(false); setPage(next); setMobileNav(false)
+  }
   function notify(message: string) { setToast(message) }
   function toggleTheme() { const next = !dark; setDark(next); localStorage.setItem('vatia-v2-dark', String(next)) }
   function enterGuest() { localStorage.setItem('vatia-v2-guest', 'true'); setGuest(true) }
-  function exitGuest() { localStorage.removeItem('vatia-v2-guest'); setGuest(false); setPage('oggi'); setActivePlan(null); setSelectedPatientId('') }
+  function exitGuest() { localStorage.removeItem('vatia-v2-guest'); setGuest(false); setPage('oggi'); setActivePlan(null); setBuilderDirty(false); setSelectedPatientId('') }
   function newDiet(patientId = effectivePatientId) {
     const patient = workspace.patients.find(item => item.id === patientId)
     if (!patient) { setNewPatientOpen(true); return }
     setSelectedPatientId(patient.id)
     const now = new Date().toISOString()
+    setBuilderDirty(false)
     setActivePlan({ id: uid(), patientId: patient.id, name: `Piano nutrizionale · ${patient.name}`, status: 'Bozza', calories: patient.calories || 1800, plan: createEmptyDiet(patient.calories || 1800), createdAt: now, updatedAt: now })
     setPage('diete')
   }
-  function openDiet(plan: DietPlan) { setSelectedPatientId(plan.patientId); setActivePlan(structuredClone(plan)); setPage('diete') }
+  function openDiet(plan: DietPlan) { setSelectedPatientId(plan.patientId); setBuilderDirty(false); setActivePlan(structuredClone(plan)); setPage('diete') }
   function openDiary(patientId: string) { setSelectedPatientId(patientId); navigate('diario') }
+  function loadDemo() { const patient = workspace.loadDemo(); if (patient) { setSelectedPatientId(patient.id); notify('Percorso demo caricato: esplora pure, resta solo in questo browser.') } }
+  function clearDemo() { workspace.clearDemo(); setSelectedPatientId(''); notify('Dati demo rimossi. Puoi iniziare con il tuo primo paziente.') }
 
   async function createPatient(input: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'>, openDiet: boolean) {
     try {
@@ -91,13 +98,13 @@ export default function App() {
       <div className="sidebar-bottom"><div className={`sync-card ${session ? 'connected' : ''}`}><div><span className="status-dot" />{session ? 'Spazio cloud protetto' : 'Area locale attiva'}</div><p>{session ? 'Dati separati per account nel progetto Vatia dedicato.' : 'I dati restano in questo browser. Accedi con un account per sincronizzarli.'}</p></div><button className="profile-button" title={session ? 'Esci da Vatia' : guest ? 'Esci dall’area ospite' : 'Profilo locale'} onClick={() => { if (session) void supabase?.auth.signOut(); else if (guest) exitGuest() }}><div className="avatar">{userName.slice(0, 2).toUpperCase()}</div><div><strong>{session?.user.email ?? (guest ? 'Ospite' : 'Area locale')}</strong><span>{session ? 'Esci dall’account' : guest ? 'Torna all’accesso' : 'Nutrizionista'}</span></div>{session || guest ? <LogOut size={18} /> : null}</button></div>
     </aside>
     <main className="main-area">
-      <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMobileNav(true)} aria-label="Apri navigazione"><Menu size={21} /></button><div className="breadcrumb"><span>Vatia</span><i>/</i><strong>{pageTitle}</strong></div><div className="topbar-actions">{workspace.patients.length > 0 && <PatientSelect patients={workspace.patients} value={effectivePatientId} onChange={setSelectedPatientId} label="Paziente attivo" />}<button className="icon-button" onClick={toggleTheme} aria-label="Cambia tema">{dark ? <Sun size={19} /> : <Moon size={19} />}</button><button className="button primary compact" onClick={() => setNewPatientOpen(true)}><Plus size={17} />Nuovo paziente</button></div></header>
+      <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMobileNav(true)} aria-label="Apri navigazione"><Menu size={21} /></button><div className="breadcrumb"><span>Vatia</span><i>/</i><strong>{pageTitle}</strong></div><div className="topbar-actions">{workspace.patients.length > 0 && !activePlan && <PatientSelect patients={workspace.patients} value={effectivePatientId} onChange={setSelectedPatientId} label="Paziente attivo" />}<button className="icon-button" onClick={toggleTheme} aria-label="Cambia tema">{dark ? <Sun size={19} /> : <Moon size={19} />}</button><button className="button primary compact" onClick={() => setNewPatientOpen(true)}><Plus size={17} />Nuovo paziente</button></div></header>
       {workspace.error && <div className="workspace-error" role="alert"><AlertCircle size={17} /><span>{workspace.error}</span><button className="icon-button" onClick={() => workspace.setError('')} aria-label="Chiudi errore"><X size={16} /></button></div>}
       <div className={`content ${activePlan ? 'builder-content' : ''}`}>
-        {page === 'oggi' && <Dashboard workspace={workspace} userName={userName} selectedPatientId={effectivePatientId} onSelectPatient={setSelectedPatientId} navigate={navigate} onNewPatient={() => setNewPatientOpen(true)} onNewAppointment={() => navigate('calendario')} />}
+        {page === 'oggi' && <Dashboard workspace={workspace} userName={userName} selectedPatientId={effectivePatientId} onSelectPatient={setSelectedPatientId} navigate={navigate} onNewPatient={() => setNewPatientOpen(true)} onNewAppointment={() => navigate('calendario')} onLoadDemo={guest && !session ? loadDemo : undefined} onClearDemo={guest && !session ? clearDemo : undefined} />}
         {page === 'pazienti' && <PatientManager workspace={workspace} selectedPatientId={effectivePatientId} onSelectPatient={setSelectedPatientId} onNewPatient={() => setNewPatientOpen(true)} onNewDiet={newDiet} onOpenDiet={openDiet} onOpenDiary={openDiary} onNewAppointment={() => navigate('calendario')} notify={notify} />}
         {page === 'diario' && <DiaryView workspace={workspace} patient={selectedPatient} patients={workspace.patients} onSelectPatient={setSelectedPatientId} onNewDiet={newDiet} notify={notify} />}
-        {page === 'diete' && (activePlan && selectedPatient ? <DietBuilder key={activePlan.id} workspace={workspace} plan={activePlan} patient={selectedPatient} onBack={() => setActivePlan(null)} notify={notify} /> : <DietsList workspace={workspace} onNewDiet={newDiet} onOpenDiet={openDiet} notify={notify} />)}
+        {page === 'diete' && (activePlan && selectedPatient ? <DietBuilder key={activePlan.id} workspace={workspace} plan={activePlan} patient={selectedPatient} onBack={() => { setActivePlan(null); setBuilderDirty(false) }} onDirtyChange={setBuilderDirty} notify={notify} /> : <DietsList workspace={workspace} onNewDiet={newDiet} onOpenDiet={openDiet} notify={notify} />)}
         {page === 'database' && <DatabaseView workspace={workspace} notify={notify} />}
         {page === 'insights' && <InsightsView workspace={workspace} patient={selectedPatient} patients={workspace.patients} onSelectPatient={setSelectedPatientId} />}
         {page === 'calendario' && <CalendarView workspace={workspace} initialPatientId={effectivePatientId} onSelectPatient={id => { setSelectedPatientId(id); navigate('pazienti') }} notify={notify} />}

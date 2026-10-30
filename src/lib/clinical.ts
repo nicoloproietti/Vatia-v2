@@ -19,6 +19,8 @@ export const initials = (name: string) => name.split(' ').filter(Boolean).map(pa
 export const formatToday = (date: Date) => new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }).format(date)
 export const formatDate = (value: string, withYear = true) => new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' } : {}) }).format(new Date(`${value.slice(0, 10)}T12:00:00`))
 export const formatDateTime = (value: string) => new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
+export const formatTime = (value: string) => new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' }).format(new Date(value))
+export const appointmentDateKey = (value: string) => dateKey(new Date(value))
 export const dayIndex = (date: Date) => (date.getDay() + 6) % 7
 
 export function calculateBMR(weight: number, height: number, age: number, sex: Sex) {

@@ -426,8 +426,9 @@ textarea:focus, select:focus, input:focus { outline-color: var(--primary); }
   .workspace-error { margin: 12px 20px 0; }
   .overview-grid { grid-template-columns: 1fr; }
   .next-action, .clinical-metrics { grid-column: auto; }
-  .builder-settings { grid-template-columns: 1fr; }
-  .builder-summary { grid-template-columns: 1fr; }
+  .builder-main { order: 1; }
+  .builder-settings { grid-template-columns: 1fr; order: 2; }
+  .builder-summary { grid-template-columns: 1fr; order: 3; }
   .compare-columns { grid-template-columns: 1fr; }
   .planned-column { border-right: 0; border-bottom: 1px solid var(--border); }
   .topbar-actions .select-wrap { display: none; }
@@ -490,6 +491,63 @@ textarea:focus, select:focus, input:focus { outline-color: var(--primary); }
   .toast { right: 13px; bottom: 13px; left: 13px; }
 }
 
+/* Product polish: readable clinical data, explicit interaction states and fast follow-up. */
+:where(button, input, select, textarea):focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.field-hint, .directory-count, .directory-list span, .patient-contacts span,
+.clinical-metrics span, .clinical-metrics p, .overview-detail dt, .followup-card span,
+.quick-actions button, .form-footer > span, .measurement-row span, .measurement-row p,
+.timeline-note small, .builder-heading p, .save-state, .settings-title p,
+.objective-buttons button, .settings-section > label, .distribution-check,
+.distribution-check button, .meal-distribution > label > span, .meal-distribution small,
+.day-toolbar p, .meal-editor-header p, .meal-actual span, .plan-food-name span,
+.plan-food-macros span, .meal-warning, .add-food-row, .check-row,
+.clinical-disclaimer, .diary-explanation p, .calendar-empty { font-size: 11px; }
+.metabolic-mini span, .macro-percent-grid > label > span, .day-tabs button,
+.summary-macros span, .summary-macros strong, .week-strip > button span,
+.column-label, .comparison-summary > div > b, .meal-delta > span,
+.calendar-column-header span, .calendar-appointment span { font-size: 10px; }
+.plan-food-name strong, .food-picker-list strong, .diary-food strong,
+.shopping-list strong, .dashboard-tasks strong { font-size: 12px; }
+.plan-food-row { min-height: 54px; }
+.day-tabs button { min-height: 44px; }
+.day-tabs button i, .plan-food-macros span, .diary-food small,
+.week-strip > button i, .week-adherence small, .calendar-appointment small { font-size: 9px; }
+.planned-column-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
+.planned-column-heading .column-label { margin: 0; }
+.copy-plan-button { display: inline-flex; align-items: center; gap: 5px; padding: 3px 0; font-size: 11px; font-weight: 650; white-space: nowrap; }
+.print-week { display: none; }
+.shopping-summary { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 16px; padding: 12px 14px; border-radius: 10px; background: var(--primary-soft); }
+.shopping-summary strong, .shopping-summary span { display: block; }
+.shopping-summary strong { font-size: 12px; }
+.shopping-summary span { margin-top: 4px; color: var(--muted); font-size: 11px; }
+.shopping-groups { display: grid; gap: 18px; }
+.shopping-category h3 { margin: 0 0 5px; color: var(--primary); font-size: 11px; letter-spacing: .5px; text-transform: uppercase; }
+.shopping-list > button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 6px; border-bottom: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--text); text-align: left; }
+.shopping-list > button:hover { background: var(--surface-soft); }
+.shopping-list > button > div { flex: 1; }
+.shopping-list > button > b { font-size: 11px; white-space: nowrap; }
+.shopping-check { display: grid; place-items: center; flex: 0 0 auto; }
+.shopping-list > button.checked { opacity: .58; }
+.shopping-list > button.checked .shopping-check { border-color: var(--primary); background: var(--primary); color: white; }
+.shopping-list > button.checked strong { text-decoration: line-through; }
+
+@media (max-width: 580px) {
+  .week-calendar { grid-template-columns: 1fr; gap: 10px; overflow: visible; }
+  .calendar-column { min-height: 0; }
+  .calendar-column-header { padding: 10px 13px; }
+  .calendar-column-body { padding: 8px 12px; }
+  .calendar-column:has(.calendar-empty) .calendar-column-body { display: none; }
+  .calendar-empty { padding: 10px 0; text-align: left; }
+  .calendar-appointment { margin-bottom: 6px; padding: 10px; }
+  .calendar-appointment strong { font-size: 11px; }
+  .calendar-appointment span { font-size: 10px; }
+  .planned-column-heading { align-items: flex-start; flex-wrap: wrap; }
+  .copy-plan-button { min-height: 32px; }
+  .shopping-summary { align-items: flex-start; }
+  .plan-food-row { row-gap: 10px; }
+  .plan-food-macros { font-size: 11px; }
+}
+
 @media print {
   body * { visibility: hidden !important; }
   #print-area, #print-area * { visibility: visible !important; }
@@ -498,7 +556,14 @@ textarea:focus, select:focus, input:focus { outline-color: var(--primary); }
   #print-area .print-heading { display: block; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 2px solid #0f8f80; }
   #print-area .print-heading h1 { margin: 0 0 6px; font-size: 24px; }
   #print-area .print-heading p { margin: 0; color: #64748b; }
+  #print-area .screen-week { display: none !important; }
+  #print-area .print-week { display: block !important; }
+  #print-area .print-week .preview-day { break-before: page; }
+  #print-area .print-week .preview-day:first-child { break-before: auto; }
   #print-area .preview-meals { grid-template-columns: 1fr 1fr; }
-  #print-area .preview-meals section { break-inside: avoid; }
+  #print-area .preview-meals section, #print-area .shopping-category, #print-area .shopping-list > button { break-inside: avoid; }
   #print-area .day-tabs { display: none; }
+  #print-area .shopping-groups { display: block; }
+  #print-area .shopping-category { margin-bottom: 18px; }
+  #print-area .shopping-list { grid-template-columns: 1fr 1fr; }
 }

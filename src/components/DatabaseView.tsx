@@ -18,7 +18,7 @@ export default function DatabaseView({ workspace, notify }: { workspace: Workspa
   function toggleFavorite(id: string) { const next = favorites.includes(id) ? favorites.filter(item => item !== id) : [...favorites, id]; setFavorites(next); localStorage.setItem('vatia-v2-favorites', JSON.stringify(next)) }
   async function importFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]; if (!file) return
-    try { const parsed = JSON.parse(await file.text()) as Food[]; if (!Array.isArray(parsed)) throw new Error('Formato non valido'); const saved = await workspace.importFoods(parsed); notify(`${saved.length} alimenti importati nel tuo database personale.`) } catch (error) { notify(error instanceof Error ? error.message : 'Importazione non riuscita.') } finally { event.target.value = '' }
+    try { const parsed = JSON.parse(await file.text()) as Food[]; if (!Array.isArray(parsed)) throw new Error('Formato non valido'); const saved = await workspace.importFoods(parsed); notify(`${saved.length} ${saved.length === 1 ? 'alimento importato' : 'alimenti importati'} nel tuo database personale.`) } catch (error) { notify(error instanceof Error ? error.message : 'Importazione non riuscita.') } finally { event.target.value = '' }
   }
   function exportFoods() { csvDownload('vatia-database-alimenti.csv', [['Nome', 'Marca', 'Categoria', 'Nota', 'Kcal / 100 g', 'Proteine', 'Carboidrati', 'Grassi', 'Fonte'], ...filtered.map(food => [food.name, food.brand ?? '', food.category, food.note ?? '', food.per100g.kcal, food.per100g.protein, food.per100g.carbs, food.per100g.fat, food.source ?? 'Vatia'])]) }
   return <>

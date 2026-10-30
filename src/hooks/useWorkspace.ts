@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { foods as baseFoods } from '../data/foods'
-import { createEmptyDiet, normalizeDietData, uid } from '../lib/clinical'
+import { createEmptyDiet, dateKey, macroGrams, normalizeDietData, uid } from '../lib/clinical'
+import { optimizeItems, quickMealItems } from '../lib/dietEngine'
 import { EMPTY_ANAMNESIS } from '../types'
 import type { Anamnesis, Appointment, DiaryEntry, DietPlan, Food, Measurement, Patient, PatientNote } from '../types'
 
@@ -194,6 +195,20 @@ export function useWorkspace(session: Session | null) {
     }, () => { const entry = { ...input, id: uid(), createdAt: new Date().toISOString() }; setDiary(current => [...current, entry]); return entry })
   }
 
+  async function addDiaryEntries(inputs: Omit<DiaryEntry, 'id' | 'createdAt'>[]) {
+    if (!inputs.length) return []
+    return run(async () => {
+      const { data, error } = await supabase!.from('diary_entries').insert(inputs.map(input => ({ patient_id: input.patientId, food_id: input.foodId, entry_date: input.date, meal: input.meal, grams: input.grams, source: input.source, note: input.note || null }))).select()
+      if (error) throw error
+      const entries: DiaryEntry[] = data.map(row => ({ id: row.id, patientId: row.patient_id, date: row.entry_date, foodId: row.food_id, grams: Number(row.grams), meal: row.meal, source: row.source === 'patient' ? 'patient' : 'professional', note: row.note ?? '', createdAt: row.created_at }))
+      setDiary(current => [...current, ...entries]); return entries
+    }, () => {
+      const createdAt = new Date().toISOString()
+      const entries = inputs.map(input => ({ ...input, id: uid(), createdAt }))
+      setDiary(current => [...current, ...entries]); return entries
+    })
+  }
+
   async function removeDiaryEntry(id: string) {
     return run(async () => {
       const { error } = await supabase!.from('diary_entries').delete().eq('id', id)
@@ -212,10 +227,30 @@ export function useWorkspace(session: Session | null) {
   }
 
   async function importFoods(imported: Food[]) {
-    const valid = imported.filter(food => food.name && food.per100g && Number.isFinite(food.per100g.kcal))
-    if (!valid.length) throw new Error('Il file non contiene alimenti validi.')
+    const numberOrZero = (value: unknown) => {
+      if (value == null || value === '') return 0
+      const parsed = Number(value)
+      return Number.isFinite(parsed) && parsed >= 0 ? parsed : Number.NaN
+    }
+    const valid = imported.flatMap(food => {
+      if (!food || typeof food.name !== 'string' || !food.name.trim() || !food.per100g) return []
+      const per100g = {
+        kcal: numberOrZero(food.per100g.kcal), protein: numberOrZero(food.per100g.protein),
+        carbs: numberOrZero(food.per100g.carbs), fat: numberOrZero(food.per100g.fat), fiber: numberOrZero(food.per100g.fiber),
+      }
+      if (Object.values(per100g).some(value => !Number.isFinite(value))) return []
+      const meals: Food['meals'] = food.meals === 'main' || food.meals === 'light' ? food.meals : 'all'
+      const sanitized: Food = {
+        ...food, name: food.name.trim(), category: typeof food.category === 'string' && food.category.trim() ? food.category.trim().toLowerCase() : 'altro',
+        brand: typeof food.brand === 'string' ? food.brand.trim() : '', barcode: typeof food.barcode === 'string' ? food.barcode.trim() : '',
+        note: typeof food.note === 'string' ? food.note.trim() : '', source: typeof food.source === 'string' && food.source.trim() ? food.source.trim() : 'Importazione JSON',
+        meals, per100g, isPublic: false,
+      }
+      return [sanitized]
+    })
+    if (!valid.length) throw new Error('Il file non contiene alimenti validi: controlla nome e valori nutrizionali non negativi.')
     return run(async () => {
-      const rows = valid.map(food => ({ id: `import-${uid()}`, user_id: session!.user.id, name: food.name, brand: food.brand || null, barcode: food.barcode || null, category: food.category || 'altro', note: food.note || null, source: food.source || 'Importazione JSON', meals: food.meals || 'all', per100g: food.per100g, is_public: false }))
+      const rows = valid.map(food => ({ id: `import-${uid()}`, user_id: session!.user.id, name: food.name, brand: food.brand || null, barcode: food.barcode || null, category: food.category, note: food.note || null, source: food.source, meals: food.meals, per100g: food.per100g, is_public: false }))
       const { data, error } = await supabase!.from('foods').insert(rows).select()
       if (error) throw error
       const saved = data.map(row => foodFromRow(row))
@@ -240,10 +275,54 @@ export function useWorkspace(session: Session | null) {
     }, () => setAppointments(current => current.filter(item => item.id !== id)))
   }
 
+  function loadDemo() {
+    if (cloud) return undefined
+    const now = new Date()
+    const timestamp = now.toISOString()
+    const patientId = `demo-${uid()}`
+    const patient: Patient = {
+      id: patientId, name: 'Anna Neri (Demo)', age: 37, email: 'anna.demo@example.com', phone: '+39 333 000 0000', sex: 'female',
+      height: 168, weight: 68.2, activityLevel: 'moderate', goal: 'Dimagrimento graduale · esempio', status: 'In follow-up', calories: 1800,
+      ...macroGrams(1800, { protein: 30, carbs: 40, fat: 30 }),
+      anamnesis: { ...EMPTY_ANAMNESIS, allergies: 'Nessuna allergia registrata (demo)', water: '1,8 L / giorno', clinicalNotes: 'Percorso dimostrativo locale: nessun dato clinico reale.' },
+      notes: 'Dati dimostrativi, modificabili ed eliminabili dalla dashboard.', createdAt: timestamp, updatedAt: timestamp,
+    }
+    const data = createEmptyDiet(1800)
+    const availableFoods = baseFoods as Food[]
+    const template = data.days[0].map((meal, index) => {
+      const kcal = Math.round(1800 * data.kcalPct[index] / 100)
+      const target = { kcal, ...macroGrams(kcal, data.macroPercent) }
+      return { ...meal, items: optimizeItems(quickMealItems(meal.name, availableFoods), availableFoods, target.kcal, target) }
+    })
+    data.days = Object.fromEntries(Array.from({ length: 7 }, (_, day) => [day, template.map(meal => ({ ...meal, id: uid(), items: meal.items.map(item => ({ ...item, id: uid() })) }))]))
+    const plan: DietPlan = { id: `demo-${uid()}`, patientId, name: 'Settimana mediterranea · Demo', status: 'Pronta', calories: 1800, plan: data, createdAt: timestamp, updatedAt: timestamp }
+    const at = (offset: number) => { const date = new Date(now); date.setDate(now.getDate() + offset); return dateKey(date) }
+    const demoMeasurements: Measurement[] = [-14, -7, 0].map((offset, index) => ({ id: `demo-${uid()}`, patientId, date: at(offset), weight: [69.8, 69, 68.2][index], waist: [82, 80, 78][index], note: index === 2 ? 'Rilevazione demo più recente' : undefined }))
+    const demoDiary: DiaryEntry[] = data.days[(now.getDay() + 6) % 7].flatMap(meal => meal.items.map(item => ({ id: `demo-${uid()}`, patientId, date: dateKey(now), foodId: item.foodId, grams: Math.max(1, Math.round(item.grams * 0.98)), meal: meal.name, source: 'patient', note: 'Consumo dimostrativo', createdAt: timestamp })))
+    const start = new Date(now); start.setDate(now.getDate() + 1); start.setHours(10, 30, 0, 0)
+    const end = new Date(start.getTime() + 45 * 60000)
+    setPatients(current => [...current, patient])
+    setPlans(current => [plan, ...current])
+    setMeasurements(current => [...demoMeasurements, ...current])
+    setDiary(current => [...demoDiary, ...current])
+    setNotes(current => [{ id: `demo-${uid()}`, patientId, text: 'Verificare il diario e preparare il follow-up dimostrativo', kind: 'Attività', dueDate: at(2), done: false, createdAt: timestamp }, ...current])
+    setAppointments(current => [...current, { id: `demo-${uid()}`, patientId, startsAt: start.toISOString(), endsAt: end.toISOString(), visitType: 'Visita di controllo', notes: 'Follow-up dimostrativo' }].sort((a, b) => a.startsAt.localeCompare(b.startsAt)))
+    return patient
+  }
+
+  function clearDemo() {
+    setPatients(current => current.filter(item => !item.id.startsWith('demo-')))
+    setPlans(current => current.filter(item => !item.patientId.startsWith('demo-')))
+    setMeasurements(current => current.filter(item => !item.patientId.startsWith('demo-')))
+    setDiary(current => current.filter(item => !item.patientId.startsWith('demo-')))
+    setNotes(current => current.filter(item => !item.patientId.startsWith('demo-')))
+    setAppointments(current => current.filter(item => !item.patientId?.startsWith('demo-')))
+  }
+
   return {
     loading, error, setError, patients, foods, customFoods, plans, diary, measurements, notes, appointments,
-    createPatient, updatePatient, addMeasurement, addNote, toggleNote, saveDiet, deleteDiet, addDiaryEntry,
-    removeDiaryEntry, addFood, importFoods, addAppointment, deleteAppointment, reload: load,
+    createPatient, updatePatient, addMeasurement, addNote, toggleNote, saveDiet, deleteDiet, addDiaryEntry, addDiaryEntries,
+    removeDiaryEntry, addFood, importFoods, addAppointment, deleteAppointment, loadDemo, clearDemo, reload: load,
     emptyDiet: createEmptyDiet,
   }
 }

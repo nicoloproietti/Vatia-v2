@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AlertCircle, ArrowLeft, BookOpen, Check, CheckCircle2, Copy, Download, ListChecks, Minus, Plus, Printer, RefreshCw, Search, ShoppingBag, Sparkles, Target, Trash2, Utensils, WandSparkles } from 'lucide-react'
 import type { Workspace } from '../hooks/useWorkspace'
 import type { DietPlan, Food, Nutrients, Patient, PlannedMeal, PlanItem } from '../types'
@@ -10,7 +10,7 @@ import { EmptyState, Field, Modal, ProgressBar } from './UI'
 type Picker = { mealIndex: number } | null
 type Substitution = { mealIndex: number; item: PlanItem } | null
 
-export default function DietBuilder({ workspace, plan: sourcePlan, patient, onBack, notify }: { workspace: Workspace; plan: DietPlan; patient: Patient; onBack: () => void; notify: (message: string) => void }) {
+export default function DietBuilder({ workspace, plan: sourcePlan, patient, onBack, onDirtyChange, notify }: { workspace: Workspace; plan: DietPlan; patient: Patient; onBack: () => void; onDirtyChange: (dirty: boolean) => void; notify: (message: string) => void }) {
   const [plan, setPlan] = useState<DietPlan>(() => structuredClone(sourcePlan))
   const [activeDay, setActiveDay] = useState(0)
   const [picker, setPicker] = useState<Picker>(null)
@@ -31,14 +31,22 @@ export default function DietBuilder({ workspace, plan: sourcePlan, patient, onBa
   const completedMeals = meals.filter(meal => meal.items.length).length
   const calorieDelta = totals.kcal - plan.calories
 
+  useEffect(() => { onDirtyChange(dirty) }, [dirty, onDirtyChange])
+  useEffect(() => {
+    const guard = (event: BeforeUnloadEvent) => { if (dirty) event.preventDefault() }
+    window.addEventListener('beforeunload', guard)
+    return () => window.removeEventListener('beforeunload', guard)
+  }, [dirty])
+
   function update(next: DietPlan) { setPlan(next); setDirty(true) }
   function updateDay(dayMeals: PlannedMeal[], day = activeDay) { update({ ...plan, plan: { ...plan.plan, days: { ...plan.plan.days, [day]: dayMeals } } }) }
   function updateMeal(index: number, meal: PlannedMeal) { updateDay(meals.map((item, mealIndex) => mealIndex === index ? meal : item)) }
 
-  function changeCalories(calories: number) { update({ ...plan, calories: Math.max(800, calories) }) }
+  function changeCalories(calories: number) { update({ ...plan, calories: Number.isFinite(calories) ? Math.min(10000, Math.max(800, calories)) : 800 }) }
   function changeMealCount(count: number) {
     if (count === plan.plan.kcalPct.length) return
-    if (meals.some(meal => meal.items.length) && !window.confirm('Cambiare il numero di pasti? La distribuzione verrà ricalcolata; gli alimenti dei pasti con lo stesso indice verranno mantenuti.')) return
+    const hasFoods = Object.values(plan.plan.days).some(day => day.some(meal => meal.items.length))
+    if (hasFoods && !window.confirm('Cambiare il numero di pasti in tutta la settimana? La distribuzione verrà ricalcolata; gli alimenti dei pasti con lo stesso indice verranno mantenuti.')) return
     const kcalPct = defaultSplit(count)
     const days = Object.fromEntries(Array.from({ length: 7 }, (_, day) => {
       const previous = plan.plan.days[day] ?? []
@@ -109,7 +117,9 @@ export default function DietBuilder({ workspace, plan: sourcePlan, patient, onBa
   }
 
   async function save(status = plan.status) {
+    if (!plan.name.trim()) { notify('Assegna un nome al piano prima di salvarlo.'); return }
     if (status === 'Pronta' && (kcalPctTotal !== 100 || macroTotal !== 100)) { notify('Per segnare il piano come pronto, calorie e macronutrienti devono essere distribuiti al 100%.'); return }
+    if (status === 'Pronta' && !configuredDays) { notify('Componi almeno una giornata completa prima di segnare il piano come pronto.'); return }
     setSaving(true)
     try {
       const saved = await workspace.saveDiet({ ...plan, status, updatedAt: new Date().toISOString() })
@@ -150,7 +160,7 @@ export default function DietBuilder({ workspace, plan: sourcePlan, patient, onBa
 function MealEditor({ meal, index, target, foods, foodsMap, onAdd, onOptimize, onQuick, onCopy, onChange, onSubstitute }: { meal: PlannedMeal; index: number; target: Nutrients; foods: Food[]; foodsMap: Map<string, Food>; onAdd: () => void; onOptimize: () => void; onQuick: () => void; onCopy: () => void; onChange: (meal: PlannedMeal) => void; onSubstitute: (item: PlanItem) => void }) {
   const totals = mealTotals(meal, foods)
   const warnings = mealStructureWarnings(meal.name, meal.items, foods)
-  return <section className="meal-editor"><div className="meal-editor-header"><div className="meal-number">{index + 1}</div><div><h3>{meal.name}</h3><p>Target {target.kcal} kcal · P {target.protein} g · C {target.carbs} g · G {target.fat} g</p></div><div className="meal-actual"><strong>{Math.round(totals.kcal)} kcal</strong><span>{totals.kcal - target.kcal >= 0 ? '+' : ''}{Math.round(totals.kcal - target.kcal)} dal target</span></div><button className="icon-button" title="Copia pasto in tutta la settimana" disabled={!meal.items.length} onClick={onCopy}><Copy size={16} /></button><button className="button secondary" onClick={onOptimize}><Sparkles size={15} />Ottimizza</button></div>{meal.items.length ? <div className="plan-food-list">{meal.items.map(item => { const food = foodsMap.get(item.foodId); if (!food) return null; const nutrition = foodNutrition(food, item.grams); return <div className="plan-food-row" key={item.id}><div className="food-icon"><Utensils size={16} /></div><div className="plan-food-name"><strong>{food.name}</strong><span>{food.note || food.category}{food.brand ? ` · ${food.brand}` : ''}</span></div><div className="grams-input"><input aria-label={`Grammi ${food.name}`} type="number" min="1" value={item.grams} onChange={event => onChange({ ...meal, items: meal.items.map(candidate => candidate.id === item.id ? { ...candidate, grams: Math.max(1, Number(event.target.value)) } : candidate) })} /><span>g</span></div><div className="plan-food-macros"><strong>{Math.round(nutrition.kcal)} kcal</strong><span>P {round(nutrition.protein)} · C {round(nutrition.carbs)} · G {round(nutrition.fat)}</span></div><button className="icon-button" title="Sostituisci con alternativa equivalente" onClick={() => onSubstitute(item)}><RefreshCw size={15} /></button><button className="icon-button danger" title="Rimuovi alimento" onClick={() => onChange({ ...meal, items: meal.items.filter(candidate => candidate.id !== item.id) })}><Trash2 size={15} /></button></div>})}</div> : <button className="quick-empty" onClick={onQuick}><WandSparkles size={21} /><strong>Componi questo pasto</strong><span>Una base equilibrata, ottimizzata sul target. Poi modifichi tutto.</span></button>}{warnings.length > 0 && <div className="meal-warning"><AlertCircle size={14} />{warnings.join(' · ')}</div>}<button className="add-food-row" onClick={onAdd}><Plus size={15} />Aggiungi alimento</button></section>
+  return <section className="meal-editor"><div className="meal-editor-header"><div className="meal-number">{index + 1}</div><div><h3>{meal.name}</h3><p>Target {target.kcal} kcal · P {target.protein} g · C {target.carbs} g · G {target.fat} g</p></div><div className="meal-actual"><strong>{Math.round(totals.kcal)} kcal</strong><span>{totals.kcal - target.kcal >= 0 ? '+' : ''}{Math.round(totals.kcal - target.kcal)} dal target</span></div><button className="icon-button" title="Copia pasto in tutta la settimana" disabled={!meal.items.length} onClick={onCopy}><Copy size={16} /></button><button className="button secondary" onClick={onOptimize}><Sparkles size={15} />Ottimizza</button></div>{meal.items.length ? <div className="plan-food-list">{meal.items.map(item => { const food = foodsMap.get(item.foodId); if (!food) return null; const nutrition = foodNutrition(food, item.grams); return <div className="plan-food-row" key={item.id}><div className="food-icon"><Utensils size={16} /></div><div className="plan-food-name"><strong>{food.name}</strong><span>{food.note || food.category}{food.brand ? ` · ${food.brand}` : ''}</span></div><div className="grams-input"><input aria-label={`Grammi ${food.name}`} type="number" min="1" value={item.grams} onChange={event => onChange({ ...meal, items: meal.items.map(candidate => candidate.id === item.id ? { ...candidate, grams: Math.max(1, Number(event.target.value) || 1) } : candidate) })} /><span>g</span></div><div className="plan-food-macros"><strong>{Math.round(nutrition.kcal)} kcal</strong><span>P {round(nutrition.protein)} · C {round(nutrition.carbs)} · G {round(nutrition.fat)}</span></div><button className="icon-button" title="Sostituisci con alternativa equivalente" onClick={() => onSubstitute(item)}><RefreshCw size={15} /></button><button className="icon-button danger" title="Rimuovi alimento" onClick={() => onChange({ ...meal, items: meal.items.filter(candidate => candidate.id !== item.id) })}><Trash2 size={15} /></button></div>})}</div> : <button className="quick-empty" onClick={onQuick}><WandSparkles size={21} /><strong>Componi questo pasto</strong><span>Una base equilibrata, ottimizzata sul target. Poi modifichi tutto.</span></button>}{warnings.length > 0 && <div className="meal-warning"><AlertCircle size={14} />{warnings.join(' · ')}</div>}<button className="add-food-row" onClick={onAdd}><Plus size={15} />Aggiungi alimento</button></section>
 }
 
 function FoodPicker({ foods, mealName, onAdd, onClose }: { foods: Food[]; mealName: string; onAdd: (food: Food) => void; onClose: () => void }) {
@@ -175,16 +185,36 @@ function CopyDayModal({ activeDay, onCopy, onClose }: { activeDay: number; onCop
 function PlanPreview({ plan, patient, foods, onClose }: { plan: DietPlan; patient: Patient; foods: Food[]; onClose: () => void }) {
   const [tab, setTab] = useState<'week' | 'shopping'>('week')
   const [day, setDay] = useState(0)
+  const [checked, setChecked] = useState<string[]>([])
   const foodsMap = new Map(foods.map(food => [food.id, food]))
   const shopping = new Map<string, { food: Food; grams: number }>()
   Object.values(plan.plan.days).forEach(meals => meals.forEach(meal => meal.items.forEach(item => { const food = foodsMap.get(item.foodId); if (food) shopping.set(food.id, { food, grams: (shopping.get(food.id)?.grams ?? 0) + item.grams }) })))
   const shoppingRows = [...shopping.values()].sort((a, b) => a.food.category.localeCompare(b.food.category) || a.food.name.localeCompare(b.food.name))
+  const categories = [...new Set(shoppingRows.map(row => row.food.category))]
   function exportPlan() {
     const rows: (string | number)[][] = [['Giorno', 'Pasto', 'Alimento', 'Grammi', 'Kcal', 'Proteine', 'Carboidrati', 'Grassi']]
     Object.entries(plan.plan.days).forEach(([dayIndex, meals]) => meals.forEach(meal => meal.items.forEach(item => { const food = foodsMap.get(item.foodId); if (!food) return; const value = foodNutrition(food, item.grams); rows.push([DAY_NAMES[Number(dayIndex)], meal.name, food.name, item.grams, value.kcal, value.protein, value.carbs, value.fat]) })))
     csvDownload(`${plan.name.replaceAll(' ', '-')}.csv`, rows)
   }
-  return <Modal title={plan.name} description={`${patient.name} · ${plan.calories} kcal / giorno · ${plan.status}`} onClose={onClose} wide><div className="preview-actions no-print"><div className="record-tabs"><button className={tab === 'week' ? 'active' : ''} onClick={() => setTab('week')}>Piano settimanale</button><button className={tab === 'shopping' ? 'active' : ''} onClick={() => setTab('shopping')}><ShoppingBag size={14} />Lista spesa</button></div><div><button className="button secondary" onClick={exportPlan}><Download size={15} />CSV</button><button className="button primary" onClick={() => window.print()}><Printer size={15} />Stampa / PDF</button></div></div><div id="print-area" className="plan-preview"><div className="print-heading"><h1>{plan.name}</h1><p>{patient.name} · {plan.calories} kcal / giorno · aggiornato {formatDate(plan.updatedAt.slice(0, 10))}</p></div>{tab === 'week' ? <><div className="day-tabs no-print">{DAY_SHORT.map((label, index) => <button key={label} className={day === index ? 'active' : ''} onClick={() => setDay(index)}>{label}</button>)}</div><h2>{DAY_NAMES[day]}</h2><div className="preview-meals">{(plan.plan.days[day] ?? []).map(meal => { const totals = mealTotals(meal, foods); return <section key={meal.id}><div><h3>{meal.name}</h3><strong>{Math.round(totals.kcal)} kcal</strong></div>{meal.items.length ? meal.items.map(item => { const food = foodsMap.get(item.foodId); return food ? <p key={item.id}><span>{food.name}{food.note ? ` · ${food.note}` : ''}</span><b>{item.grams} g</b></p> : null }) : <p className="muted-block">Pasto non composto</p>}</section>})}</div></> : <div className="shopping-list">{shoppingRows.map(({ food, grams }) => <div key={food.id}><span className="shopping-check" /><div><strong>{food.name}</strong><span>{food.category}</span></div><b>{Math.round(grams)} g</b></div>)}{!shoppingRows.length && <EmptyState icon={<ShoppingBag size={27} />} title="Lista vuota" text="Componi almeno un pasto per generare la lista spesa." />}</div>}</div></Modal>
+  function toggleChecked(id: string) { setChecked(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]) }
+  return <Modal title={plan.name} description={`${patient.name} · ${plan.calories} kcal / giorno · ${plan.status}`} onClose={onClose} wide>
+    <div className="preview-actions no-print"><div className="record-tabs"><button className={tab === 'week' ? 'active' : ''} onClick={() => setTab('week')}>Piano settimanale</button><button className={tab === 'shopping' ? 'active' : ''} onClick={() => setTab('shopping')}><ShoppingBag size={14} />Lista spesa</button></div><div><button className="button secondary" onClick={exportPlan}><Download size={15} />CSV</button><button className="button primary" onClick={() => window.print()}><Printer size={15} />Stampa / PDF</button></div></div>
+    <div id="print-area" className="plan-preview">
+      <div className="print-heading"><h1>{plan.name}</h1><p>{patient.name} · {plan.calories} kcal / giorno · aggiornato {formatDate(plan.updatedAt.slice(0, 10))}</p></div>
+      {tab === 'week' ? <>
+        <div className="screen-week"><div className="day-tabs no-print">{DAY_SHORT.map((label, index) => <button key={label} className={day === index ? 'active' : ''} onClick={() => setDay(index)}>{label}</button>)}</div><PreviewDay title={DAY_NAMES[day]} meals={plan.plan.days[day] ?? []} foods={foods} foodsMap={foodsMap} /></div>
+        <div className="print-week" aria-hidden="true">{DAY_NAMES.map((name, index) => <PreviewDay key={name} title={name} meals={plan.plan.days[index] ?? []} foods={foods} foodsMap={foodsMap} />)}</div>
+      </> : <div className="shopping-view">
+        <div className="shopping-summary no-print"><div><strong>{shoppingRows.length - checked.length} ingredienti da acquistare</strong><span>Quantità aggregate sull’intera settimana</span></div>{checked.length > 0 && <button className="text-button" onClick={() => setChecked([])}>Azzera {checked.length} spunte</button>}</div>
+        <div className="shopping-groups">{categories.map(category => <section className="shopping-category" key={category}><h3>{category}</h3><div className="shopping-list">{shoppingRows.filter(row => row.food.category === category).map(({ food, grams }) => <button type="button" aria-pressed={checked.includes(food.id)} className={checked.includes(food.id) ? 'checked' : ''} key={food.id} onClick={() => toggleChecked(food.id)}><span className="shopping-check">{checked.includes(food.id) && <Check size={12} />}</span><div><strong>{food.name}</strong><span>{food.note || food.brand || 'Quantità settimanale'}</span></div><b>{Math.round(grams)} g</b></button>)}</div></section>)}</div>
+        {!shoppingRows.length && <EmptyState icon={<ShoppingBag size={27} />} title="Lista vuota" text="Componi almeno un pasto per generare la lista spesa." />}
+      </div>}
+    </div>
+  </Modal>
+}
+
+function PreviewDay({ title, meals, foods, foodsMap }: { title: string; meals: PlannedMeal[]; foods: Food[]; foodsMap: Map<string, Food> }) {
+  return <section className="preview-day"><h2>{title}</h2><div className="preview-meals">{meals.map(meal => { const totals = mealTotals(meal, foods); return <section key={meal.id}><div><h3>{meal.name}</h3><strong>{Math.round(totals.kcal)} kcal</strong></div>{meal.items.length ? meal.items.map(item => { const food = foodsMap.get(item.foodId); return food ? <p key={item.id}><span>{food.name}{food.note ? ` · ${food.note}` : ''}</span><b>{item.grams} g</b></p> : null }) : <p className="muted-block">Pasto non composto</p>}</section>})}</div></section>
 }
 
 function CheckRow({ ok, text }: { ok: boolean; text: string }) {
