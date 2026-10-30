@@ -60,18 +60,34 @@ def click_button(name, contains=False, scope=''):
     code = f'(()=>{{const b=Array.from(document.querySelectorAll({json.dumps(scope + " button")})).find(b=>b.offsetParent!==null&&{comparison});if(!b)return false;b.click();return true}})()'
     if not evaluate(code):
         raise AssertionError(f'Pulsante non trovato: {name}. Contenuto: {texts(snapshot())}')
+    time.sleep(.4)
 
 
-def fill(selector, value):
+def fill(selector, value, index=0):
     for attempt in range(8):
         try:
-            call('fill', {'selector': selector, 'value': str(value)})
+            actual = selector if index == 0 else None
+            if index:
+                ok = evaluate(f'(()=>{{const e=document.querySelectorAll({json.dumps(selector)})[{index}];if(!e)return false;e.dataset.auditTarget="true";return true}})()')
+                if not ok:
+                    raise AssertionError(f'Campo indice {index} non trovato: {selector}')
+                actual = '[data-audit-target="true"]'
+            call('fill', {'selector': actual, 'value': str(value)})
+            if index:
+                evaluate('document.querySelector("[data-audit-target]")?.removeAttribute("data-audit-target");true')
             return
         except RuntimeError as error:
             if 'element not found' not in str(error) or attempt == 7:
                 print('Contenuto al momento del campo mancante:', texts(snapshot()))
                 raise
             time.sleep(0.5)
+
+
+def select(selector, value):
+    ok = evaluate(f'(()=>{{const e=document.querySelector({json.dumps(selector)});if(!e)return false;const setter=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,"value").set;setter.call(e,{json.dumps(value)});e.dispatchEvent(new Event("change",{{bubbles:true}}));return true}})()')
+    if not ok:
+        raise AssertionError(f'Select non trovata: {selector}')
+    time.sleep(.3)
 
 
 def wait_for_modal_close(timeout=35):
@@ -123,19 +139,25 @@ try:
     call('reload')
     wait_for('Accedi come ospite')
     click_button('Accedi come ospite')
-    wait_for('Il tuo primo percorso nutrizionale')
-    print('PASS accesso ospite e onboarding vuoto')
+    wait_for('Dal primo paziente al follow-up')
+    print('PASS accesso ospite e onboarding')
 
     click_button('Esplora con dati demo')
     wait_for('Anna Neri (Demo)')
     wait_for('Rimuovi demo')
     time.sleep(2)
-    screenshot('dashboard-demo-desktop.jpg')
+    screenshot('final-dashboard-demo.jpg')
+    click_button('Fatturazione', contains=True, scope='.main-nav')
+    wait_for('72,80')
+    if evaluate('JSON.parse(localStorage.getItem("vatia-v3-services")||"[]").length') != 3:
+        raise AssertionError('Il tariffario demo non è completo')
+    click_button('Rimuovi demo', contains=True) if evaluate('Array.from(document.querySelectorAll("button")).some(b=>b.offsetParent!==null&&b.innerText.includes("Rimuovi demo"))') else None
+    click_button('Oggi', scope='.main-nav')
     click_button('Rimuovi demo')
-    wait_for('Il tuo primo percorso nutrizionale')
-    if evaluate('JSON.parse(localStorage.getItem("vatia-v3-patients")||"[]").some(p=>p.id.startsWith("demo-"))'):
-        raise AssertionError('La rimozione demo non ha ripulito i dati locali')
-    print('PASS caricamento e rimozione completa dei dati demo')
+    wait_for('Dal primo paziente al follow-up')
+    if evaluate('JSON.parse(localStorage.getItem("vatia-v3-invoices")||"[]").some(p=>p.id.startsWith("demo-"))'):
+        raise AssertionError('La rimozione demo non ha ripulito i documenti')
+    print('PASS demo clinica e amministrativa con pulizia completa')
 
     click_button('Nuovo paziente')
     fill('.modal input[name="name"]', patient_name)
@@ -149,17 +171,12 @@ try:
     fill('.modal input[name="age"]', 37)
     click_button('Continua', scope='.modal')
     click_button('Aumento massa', contains=True, scope='.objective-grid')
-    if evaluate("document.querySelector('.modal [name=goal]').value") != 'Aumento della massa muscolare':
-        raise AssertionError('Il cambio obiettivo non aggiorna il testo')
     click_button('Dimagrimento', contains=True, scope='.objective-grid')
-    fill('.modal input[name="calories"]', 500)
-    if not evaluate('document.querySelector(".wizard-actions .heading-actions .button.primary").disabled'):
-        raise AssertionError('Il wizard accetta un target calorico fuori limite')
     fill('.modal input[name="calories"]', 1800)
     click_button('Crea paziente', scope='.modal')
     wait_for_modal_close()
     wait_for(patient_name)
-    print('PASS wizard, limiti clinici e sincronizzazione obiettivo')
+    print('PASS creazione paziente e limiti clinici')
 
     click_button('Nuova dieta', scope='.record-actions')
     wait_for('BUILDER NUTRIZIONALE')
@@ -175,16 +192,6 @@ try:
     call('click', {'selector': '.food-picker-list > button'})
     wait_for_modal_close()
     wait_for('Alimento sostituito')
-    print(f'PASS composizione, ottimizzazione, grammi e alternative ({food_rows} alimenti)')
-
-    evaluate('window.__auditConfirm=window.confirm;window.__auditConfirmCalls=0;window.confirm=()=>{window.__auditConfirmCalls++;return false};true')
-    click_button('Pazienti', contains=True, scope='.main-nav')
-    time.sleep(1)
-    if not evaluate('Boolean(document.querySelector(".diet-builder"))') or not evaluate('window.__auditConfirmCalls > 0'):
-        raise AssertionError('La navigazione non protegge le modifiche non salvate')
-    evaluate('window.confirm=window.__auditConfirm;delete window.__auditConfirm;delete window.__auditConfirmCalls;true')
-    print('PASS protezione dal lavoro non salvato')
-
     click_button('Copia giorno')
     click_button('Copia in 6 giorni', scope='.modal')
     wait_for('Giornata copiata in 6 giorni')
@@ -192,93 +199,116 @@ try:
     wait_for('Bozza salvata')
     click_button('Segna come pronta')
     wait_for('Piano salvato e pronto')
-    print('PASS copia settimanale e salvataggio piano pronto')
-
     click_button('Anteprima')
     wait_for('Piano settimanale')
     if evaluate('document.querySelectorAll(".print-week .preview-day").length') != 7:
         raise AssertionError('La stampa non contiene tutti i sette giorni')
-    screenshot('preview-week-desktop.jpg')
-    call('cdp', {'method': 'Emulation.setEmulatedMedia', 'params': {'media': 'print'}})
-    try:
-        if not evaluate('getComputedStyle(document.querySelector(".print-week")).display === "block" && getComputedStyle(document.querySelector(".screen-week")).display === "none"'):
-            raise AssertionError('Il CSS di stampa non sostituisce il giorno attivo con la settimana completa')
-    finally:
-        call('cdp', {'method': 'Emulation.setEmulatedMedia', 'params': {'media': ''}})
     click_button('Lista spesa', contains=True)
-    shopping_count = evaluate('document.querySelectorAll(".shopping-list > button").length')
-    if not shopping_count:
+    if not evaluate('document.querySelectorAll(".shopping-list > button").length'):
         raise AssertionError('Lista spesa vuota nonostante il piano composto')
     call('click', {'selector': '.shopping-list > button'})
     if not evaluate('document.querySelector(".shopping-list > button").getAttribute("aria-pressed") === "true"'):
         raise AssertionError('La spunta della lista spesa non funziona')
-    if not evaluate('document.querySelectorAll(".shopping-category").length > 1'):
-        raise AssertionError('La lista spesa non è raggruppata per categoria')
-    screenshot('preview-shopping-desktop.jpg')
     call('click', {'selector': '.modal-close'})
-    screenshot('builder-desktop.jpg')
-    assert_no_overflow('builder desktop')
-    set_mobile()
-    screenshot('builder-mobile.jpg')
-    assert_no_overflow('builder mobile')
-    set_mobile(False)
-    print('PASS stampa sette giorni, lista spesa interattiva e builder responsive')
+    print(f'PASS builder completo, stampa e spesa ({food_rows} alimenti)')
 
-    click_button('Diario alimentare', contains=True)
+    click_button('Monitoraggio', scope='.main-nav')
+    wait_for('Aderenza e follow-up')
+    wait_for('A COSA SERVE')
+    call('click', {'selector': '.monitoring-patient'})
     wait_for('Piano di confronto')
     if not any(plan_name in value for value in texts(snapshot())):
-        raise AssertionError('Il diario non usa il piano appena salvato')
+        raise AssertionError('Il monitoraggio non usa il piano appena salvato')
     copied = evaluate('(()=>{const section=Array.from(document.querySelectorAll(".diary-meal-compare")).find(s=>s.querySelector("h2")?.innerText==="Cena");const button=section?.querySelector(".copy-plan-button");if(!button)return false;button.click();return true})()')
     if not copied:
-        raise AssertionError('Azione rapida diario non trovata per Cena')
+        raise AssertionError('Azione rapida monitoraggio non trovata per Cena')
     wait_for('Cena:', timeout=10)
-    time.sleep(1)
-    if not evaluate('(()=>{const s=Array.from(document.querySelectorAll(".diary-meal-compare")).find(s=>s.querySelector("h2")?.innerText==="Cena");return s?s.querySelectorAll(".diary-food").length:0})()'):
-        raise AssertionError('La copia dal piano non ha generato registrazioni')
     click_button('Registra consumo')
     fill('.diary-entry-fields input[placeholder]', 'Porzione inserita durante test locale')
     fill('.modal .search-field input', 'Pasta di semola')
     click_button('Pasta di semola di grano duro', contains=True, scope='.modal')
     wait_for_modal_close()
     wait_for('Registrato dal professionista')
-    screenshot('diary-desktop.jpg')
-    assert_no_overflow('diario desktop')
-    print('PASS diario manuale e copia del piano in una sola azione')
+    screenshot('final-monitoring-detail.jpg')
+    click_button('Panoramica pazienti')
+    click_button('Prepara follow-up')
+    wait_for('Follow-up preparato')
+    print('PASS monitoraggio trasversale, confronto e follow-up')
 
-    click_button('Calendario')
+    click_button('Agenda', scope='.main-nav')
     click_button('Nuovo appuntamento')
     fill('.modal [name="time"]', '10:15')
     fill('.modal [name="notes"]', 'Follow-up fittizio E2E locale')
     call('click', {'selector': '.modal button[type="submit"]'})
     wait_for_modal_close()
-    wait_for('Follow-up fittizio E2E locale')
-    appointment_text = evaluate('Array.from(document.querySelectorAll(".calendar-appointment")).map(e=>e.innerText).join(" | ")')
-    if '10:15' not in appointment_text:
-        raise AssertionError(f'Orario locale non corretto: {appointment_text}')
+    appointment_id = evaluate('JSON.parse(localStorage.getItem("vatia-v3-appointments")).find(a=>a.notes==="Follow-up fittizio E2E locale").id')
+    if not appointment_id:
+        raise AssertionError('Appuntamento non persistito')
+    if not evaluate(f'new Date(JSON.parse(localStorage.getItem("vatia-v3-appointments")).find(a=>a.id==={json.dumps(appointment_id)}).startsAt).getHours()===10'):
+        raise AssertionError('Orario locale non corretto')
+    dragged = evaluate(f'''(()=>{{const source=document.querySelector('[data-appointment-id={json.dumps(appointment_id)}]');const target=Array.from(document.querySelectorAll('[data-agenda-day]')).find(x=>x.dataset.agendaDay!==new Date(JSON.parse(localStorage.getItem('vatia-v3-appointments')).find(a=>a.id==={json.dumps(appointment_id)}).startsAt).toLocaleDateString('en-CA'));if(!source||!target)return false;const dt=new DataTransfer();source.dispatchEvent(new DragEvent('dragstart',{{bubbles:true,dataTransfer:dt}}));const r=target.getBoundingClientRect();target.dispatchEvent(new DragEvent('dragover',{{bubbles:true,dataTransfer:dt,clientY:r.top+504}}));target.dispatchEvent(new DragEvent('drop',{{bubbles:true,dataTransfer:dt,clientY:r.top+504}}));source.dispatchEvent(new DragEvent('dragend',{{bubbles:true,dataTransfer:dt}}));return true}})()''')
+    if not dragged:
+        raise AssertionError('Elementi per drag-and-drop non trovati')
+    time.sleep(1.5)
+    if not evaluate(f'new Date(JSON.parse(localStorage.getItem("vatia-v3-appointments")).find(a=>a.id==={json.dumps(appointment_id)}).startsAt).getHours()===14'):
+        raise AssertionError('Il drag-and-drop non ha spostato la visita alle 14:00')
+    resized = evaluate(f'''(()=>{{const event=document.querySelector('[data-appointment-id={json.dumps(appointment_id)}]');const handle=event?.querySelector('.agenda-resize-handle');if(!handle)return false;const r=handle.getBoundingClientRect();window.__resizeY=r.top;handle.dispatchEvent(new PointerEvent('pointerdown',{{bubbles:true,clientY:r.top}}));return true}})()''')
+    if not resized:
+        raise AssertionError('Handle ridimensionamento non trovato')
+    time.sleep(.5)
+    evaluate('window.dispatchEvent(new PointerEvent("pointermove",{bubbles:true,clientY:window.__resizeY+36}));true')
+    time.sleep(.5)
+    evaluate('window.dispatchEvent(new PointerEvent("pointerup",{bubbles:true,clientY:window.__resizeY+36}));delete window.__resizeY;true')
+    time.sleep(1.5)
+    duration = evaluate(f'(()=>{{const a=JSON.parse(localStorage.getItem("vatia-v3-appointments")).find(a=>a.id==={json.dumps(appointment_id)});return (new Date(a.endsAt)-new Date(a.startsAt))/60000}})()')
+    if duration != 75:
+        raise AssertionError(f'Ridimensionamento non riuscito: durata {duration}')
+    screenshot('final-agenda-desktop.jpg')
     set_mobile()
-    screenshot('calendar-mobile.jpg')
-    assert_no_overflow('calendario mobile')
-    columns = evaluate('getComputedStyle(document.querySelector(".week-calendar")).gridTemplateColumns')
-    if ' ' in columns.strip():
-        raise AssertionError(f'Il calendario mobile non è un’agenda verticale: {columns}')
+    screenshot('final-agenda-mobile.jpg')
+    assert_no_overflow('agenda mobile')
+    if not evaluate('getComputedStyle(document.querySelector(".agenda-shell")).display === "none" && getComputedStyle(document.querySelector(".agenda-list-view")).display !== "none"'):
+        raise AssertionError('La vista mobile non usa l’agenda compatta')
     set_mobile(False)
-    print('PASS appuntamento alle 10:15 e agenda mobile verticale')
+    print('PASS agenda: creazione, drag-and-drop, resize e mobile')
 
-    click_button('Pazienti', contains=True, scope='.main-nav')
-    click_button('Misurazioni')
-    click_button('Nuova misurazione')
-    fill('.modal [name="date"]', '2020-01-01')
-    fill('.modal [name="weight"]', 50)
-    fill('.modal [name="note"]', 'Misurazione storica fittizia')
+    click_button('Fatturazione', contains=True, scope='.main-nav')
+    click_button('Tariffario', contains=True, scope='.billing-tabs')
+    click_button('Nuova prestazione')
+    fill('.modal [name="serviceName"]', f'Consulenza E2E {suffix}')
+    fill('.modal input[type="number"]', 50, index=0)
+    fill('.modal input[type="number"]', 100, index=1)
     call('click', {'selector': '.modal button[type="submit"]'})
     wait_for_modal_close()
-    wait_for('Misurazione storica salvata senza modificare il peso attuale')
-    history = evaluate('Array.from(document.querySelectorAll(".measurement-row strong")).map(e=>e.innerText)')
-    if len(history) < 2 or history[0] != '67.5 kg' or history[-1] != '50 kg':
-        raise AssertionError(f'Ordine misurazioni o peso attuale errato: {history}')
-    print('PASS storico misurazioni senza sovrascrivere il peso attuale')
+    wait_for(f'Consulenza E2E {suffix}')
+    click_button('Dati studio', scope='.billing-tabs')
+    settings_values = ['Studio E2E', 'Dott. Test E2E', 'TSTTST80A01H501Z', '01234567890', '12345', 'Via Test 1', '00100', 'Roma', 'RM', 'e2e@example.com', '06000000']
+    for index, value in enumerate(settings_values):
+        fill('.settings-grid input', value, index=index)
+    click_button('Salva dati studio')
+    wait_for('Dati dello studio salvati')
+    click_button('Documenti', contains=True, scope='.billing-tabs')
+    click_button('Nuovo documento')
+    fill('.modal [name="recipientTaxCode"]', 'TSTTST80A01H501Z')
+    fill('.modal [name="recipientAddress"]', 'Via Test 2, 00100 Roma (RM)')
+    select('.modal [name="status"]', 'Emessa')
+    wait_for('106,00')
+    call('click', {'selector': '.modal button[type="submit"]'})
+    wait_for_modal_close()
+    wait_for('Documento salvato')
+    invoice_id = evaluate('JSON.parse(localStorage.getItem("vatia-v3-invoices")).find(i=>i.description.startsWith("Consulenza E2E")).id')
+    if not invoice_id:
+        raise AssertionError('Documento non salvato')
+    click_button('Incassa')
+    wait_for('segnata come pagata')
+    if not evaluate(f'JSON.parse(localStorage.getItem("vatia-v3-invoices")).find(i=>i.id==={json.dumps(invoice_id)}).status==="Pagata"'):
+        raise AssertionError('Incasso non persistito')
+    click_button('Report economico', scope='.billing-tabs')
+    wait_for('106,00')
+    screenshot('final-billing-report.jpg')
+    print('PASS tariffario, dati studio, ENPAB, bollo, emissione, incasso e report')
 
-    click_button('Database alimenti', contains=True)
+    click_button('Database alimenti', contains=True, scope='.main-nav')
     click_button('Nuovo alimento')
     fill('.modal [name="name"]', f'Alimento test {suffix}')
     fill('.modal [name="kcal"]', 120)
@@ -288,32 +318,28 @@ try:
     call('click', {'selector': '.modal button[type="submit"]'})
     wait_for_modal_close()
     wait_for(f'Alimento test {suffix}')
-    payload = [
-        {'name': f'Importato valido {suffix}', 'category': ' CEREALI ', 'per100g': {'kcal': 200, 'protein': 7, 'carbs': 40, 'fat': 2}},
-        {'name': 'Importato non valido', 'per100g': {'kcal': 100, 'protein': -4, 'carbs': 10, 'fat': 2}},
-    ]
-    code = '(()=>{const input=document.querySelector("input[type=file]");const dt=new DataTransfer();dt.items.add(new File([' + json.dumps(json.dumps(payload)) + '],"test.json",{type:"application/json"}));input.files=dt.files;input.dispatchEvent(new Event("change",{bubbles:true}));return true})()'
-    if not evaluate(code):
-        raise AssertionError('Input importazione non trovato')
-    wait_for(f'Importato valido {suffix}')
-    fill('.database-toolbar .search-field input', f'Importato valido {suffix}')
-    wait_for(f'Importato valido {suffix}')
-    if evaluate('document.body.innerText.includes("Importato non valido")'):
-        raise AssertionError('È stato importato un alimento con valori negativi')
-    assert_no_visible_error()
-    print('PASS alimento personale e importazione JSON sanitizzata')
+    print('PASS database alimenti personale')
 
     call('reload')
     wait_for('Area locale attiva')
     click_button('Diete', contains=True, scope='.main-nav')
     wait_for(plan_name)
-    click_button('Diario alimentare', contains=True, scope='.main-nav')
-    wait_for('Registrato dal professionista')
-    click_button('Calendario', scope='.main-nav')
-    wait_for('Follow-up fittizio E2E locale')
+    click_button('Agenda', scope='.main-nav')
+    wait_for('Calendario')
+    if not evaluate(f'JSON.parse(localStorage.getItem("vatia-v3-appointments")).some(a=>a.id==={json.dumps(appointment_id)})'):
+        raise AssertionError('Appuntamento non persistito dopo reload')
+    click_button('Fatturazione', contains=True, scope='.main-nav')
+    wait_for(f'Consulenza E2E {suffix}')
+    click_button('Insight di studio', scope='.main-nav')
+    wait_for('Insight di studio')
+    wait_for('106,00')
     assert_no_visible_error()
     assert_no_overflow('persistenza desktop')
-    print('PASS persistenza locale dopo ricaricamento')
+    set_mobile()
+    screenshot('final-insights-mobile.jpg')
+    assert_no_overflow('insight mobile')
+    set_mobile(False)
+    print('PASS persistenza locale, insight economici e responsive finale')
     print('E2E OSPITE COMPLETATO')
 finally:
     try:

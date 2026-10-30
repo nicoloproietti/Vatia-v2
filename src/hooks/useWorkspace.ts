@@ -4,8 +4,8 @@ import { supabase } from '../lib/supabase'
 import { foods as baseFoods } from '../data/foods'
 import { createEmptyDiet, dateKey, macroGrams, normalizeDietData, uid } from '../lib/clinical'
 import { optimizeItems, quickMealItems } from '../lib/dietEngine'
-import { EMPTY_ANAMNESIS } from '../types'
-import type { Anamnesis, Appointment, DiaryEntry, DietPlan, Food, Measurement, Patient, PatientNote } from '../types'
+import { EMPTY_ANAMNESIS, EMPTY_BILLING_SETTINGS } from '../types'
+import type { Anamnesis, Appointment, BillingSettings, DiaryEntry, DietPlan, Food, Invoice, Measurement, Patient, PatientNote, Service } from '../types'
 
 function readStored<T>(key: string, fallback: T): T {
   try {
@@ -48,10 +48,25 @@ const planFromRow = (row: Record<string, unknown>): DietPlan => {
   }
 }
 
+const serviceFromRow = (row: Record<string, unknown>): Service => ({
+  id: String(row.id), name: String(row.name), category: String(row.category ?? 'Visite'),
+  duration: Number(row.duration ?? 45), price: Number(row.price ?? 0), active: Boolean(row.active),
+})
+
+const invoiceFromRow = (row: Record<string, unknown>): Invoice => ({
+  id: String(row.id), number: String(row.number), patientId: String(row.patient_id), appointmentId: row.appointment_id ? String(row.appointment_id) : undefined,
+  issueDate: String(row.issue_date), dueDate: String(row.due_date), serviceId: row.service_id ? String(row.service_id) : undefined,
+  description: String(row.description ?? ''), amount: Number(row.amount ?? 0), enpab: Boolean(row.enpab), stamp: Boolean(row.stamp),
+  status: (row.status ?? 'Bozza') as Invoice['status'], paymentMethod: String(row.payment_method ?? ''), paymentDate: row.payment_date ? String(row.payment_date) : undefined,
+  recipientTaxCode: String(row.recipient_tax_code ?? ''), recipientAddress: String(row.recipient_address ?? ''), notes: String(row.notes ?? ''),
+  createdAt: String(row.created_at ?? ''), updatedAt: String(row.updated_at ?? ''),
+})
+
 export function useWorkspace(session: Session | null) {
   const cloud = Boolean(supabase && session)
   const [loading, setLoading] = useState(cloud)
   const [error, setError] = useState('')
+  const [billingWarning, setBillingWarning] = useState('')
   const [patients, setPatients] = useStored<Patient[]>('vatia-v3-patients', [], cloud)
   const [customFoods, setCustomFoods] = useStored<Food[]>('vatia-v3-foods', [], cloud)
   const [plans, setPlans] = useStored<DietPlan[]>('vatia-v3-plans', [], cloud)
@@ -59,11 +74,14 @@ export function useWorkspace(session: Session | null) {
   const [measurements, setMeasurements] = useStored<Measurement[]>('vatia-v3-measurements', [], cloud)
   const [notes, setNotes] = useStored<PatientNote[]>('vatia-v3-notes', [], cloud)
   const [appointments, setAppointments] = useStored<Appointment[]>('vatia-v3-appointments', [], cloud)
+  const [services, setServices] = useStored<Service[]>('vatia-v3-services', [], cloud)
+  const [invoices, setInvoices] = useStored<Invoice[]>('vatia-v3-invoices', [], cloud)
+  const [billingSettings, setBillingSettings] = useStored<BillingSettings>('vatia-v3-billing-settings', EMPTY_BILLING_SETTINGS, cloud)
   const foods: Food[] = [...customFoods, ...(baseFoods as Food[]).filter(base => !customFoods.some(food => food.id === base.id))]
 
   const load = useCallback(async () => {
     if (!supabase || !session) { setLoading(false); return }
-    setLoading(true); setError('')
+    setLoading(true); setError(''); setBillingWarning('')
     try {
       const [patientResult, foodResult, dietResult, diaryResult, measurementResult, noteResult, appointmentResult] = await Promise.all([
         supabase.from('patients').select('*').order('created_at'),
@@ -90,10 +108,31 @@ export function useWorkspace(session: Session | null) {
       })))
       setNotes((noteResult.data ?? []).map(row => ({ id: row.id, patientId: row.patient_id, text: row.text, kind: row.kind === 'Attività' ? 'Attività' : 'Nota', dueDate: row.due_date ?? undefined, done: row.done, createdAt: row.created_at })))
       setAppointments((appointmentResult.data ?? []).map(row => ({ id: row.id, patientId: row.patient_id, startsAt: row.starts_at, endsAt: row.ends_at, visitType: row.visit_type, notes: row.notes ?? '' })))
+      try {
+        const [serviceResult, invoiceResult, settingsResult] = await Promise.all([
+          supabase.from('services').select('*').order('name'),
+          supabase.from('invoices').select('*').order('issue_date', { ascending: false }),
+          supabase.from('billing_settings').select('*').maybeSingle(),
+        ])
+        const adminFailure = [serviceResult, invoiceResult, settingsResult].find(result => result.error)
+        if (adminFailure?.error) throw adminFailure.error
+        setServices((serviceResult.data ?? []).map(row => serviceFromRow(row)))
+        setInvoices((invoiceResult.data ?? []).map(row => invoiceFromRow(row)))
+        if (settingsResult.data) {
+          const row = settingsResult.data
+          setBillingSettings({
+            studioName: String(row.studio_name ?? ''), professionalName: String(row.professional_name ?? ''), vatNumber: String(row.vat_number ?? ''),
+            taxCode: String(row.tax_code ?? ''), address: String(row.address ?? ''), city: String(row.city ?? ''), postalCode: String(row.postal_code ?? ''),
+            province: String(row.province ?? ''), enpabNumber: String(row.enpab_number ?? ''), email: String(row.email ?? ''), phone: String(row.phone ?? ''),
+          })
+        }
+      } catch {
+        setBillingWarning('La fatturazione cloud non è ancora configurata. Applica supabase/billing-schema.sql al progetto Vatia dedicato; i dati clinici restano disponibili.')
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Impossibile caricare lo spazio di lavoro.')
     } finally { setLoading(false) }
-  }, [session, setAppointments, setCustomFoods, setDiary, setMeasurements, setNotes, setPatients, setPlans])
+  }, [session, setAppointments, setCustomFoods, setDiary, setMeasurements, setNotes, setPatients, setPlans, setServices, setInvoices, setBillingSettings])
 
   useEffect(() => { void load() }, [load])
 
@@ -267,12 +306,76 @@ export function useWorkspace(session: Session | null) {
     }, () => { const appointment = { ...input, id: uid() }; setAppointments(current => [...current, appointment]); return appointment })
   }
 
+  async function updateAppointment(appointment: Appointment) {
+    return run(async () => {
+      const { error } = await supabase!.from('appointments').update({ patient_id: appointment.patientId || null, starts_at: appointment.startsAt, ends_at: appointment.endsAt, visit_type: appointment.visitType, notes: appointment.notes || null }).eq('id', appointment.id)
+      if (error) throw error
+      setAppointments(current => current.map(item => item.id === appointment.id ? appointment : item).sort((a, b) => a.startsAt.localeCompare(b.startsAt)))
+      return appointment
+    }, () => { setAppointments(current => current.map(item => item.id === appointment.id ? appointment : item).sort((a, b) => a.startsAt.localeCompare(b.startsAt))); return appointment })
+  }
+
   async function deleteAppointment(id: string) {
     return run(async () => {
       const { error } = await supabase!.from('appointments').delete().eq('id', id)
       if (error) throw error
       setAppointments(current => current.filter(item => item.id !== id))
     }, () => setAppointments(current => current.filter(item => item.id !== id)))
+  }
+
+  async function saveService(service: Service) {
+    return run(async () => {
+      const { data, error } = await supabase!.from('services').upsert({ id: service.id, name: service.name, category: service.category, duration: service.duration, price: service.price, active: service.active }).select().single()
+      if (error) throw error
+      const saved = serviceFromRow(data)
+      setServices(current => [...current.filter(item => item.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name)))
+      return saved
+    }, () => { setServices(current => [...current.filter(item => item.id !== service.id), service].sort((a, b) => a.name.localeCompare(b.name))); return service })
+  }
+
+  async function deleteService(id: string) {
+    return run(async () => {
+      const { error } = await supabase!.from('services').delete().eq('id', id)
+      if (error) throw error
+      setServices(current => current.filter(item => item.id !== id))
+    }, () => setServices(current => current.filter(item => item.id !== id)))
+  }
+
+  async function saveInvoice(invoice: Invoice) {
+    const updated = { ...invoice, updatedAt: new Date().toISOString() }
+    return run(async () => {
+      const { data, error } = await supabase!.from('invoices').upsert({
+        id: updated.id, number: updated.number, patient_id: updated.patientId, appointment_id: updated.appointmentId || null,
+        issue_date: updated.issueDate, due_date: updated.dueDate, service_id: updated.serviceId || null, description: updated.description,
+        amount: updated.amount, enpab: updated.enpab, stamp: updated.stamp, status: updated.status, payment_method: updated.paymentMethod || null,
+        payment_date: updated.paymentDate || null, recipient_tax_code: updated.recipientTaxCode || null, recipient_address: updated.recipientAddress || null,
+        notes: updated.notes || null, updated_at: updated.updatedAt,
+      }).select().single()
+      if (error) throw error
+      const saved = invoiceFromRow(data)
+      setInvoices(current => [saved, ...current.filter(item => item.id !== saved.id)])
+      return saved
+    }, () => { setInvoices(current => [updated, ...current.filter(item => item.id !== updated.id)]); return updated })
+  }
+
+  async function deleteInvoice(id: string) {
+    return run(async () => {
+      const { error } = await supabase!.from('invoices').delete().eq('id', id)
+      if (error) throw error
+      setInvoices(current => current.filter(item => item.id !== id))
+    }, () => setInvoices(current => current.filter(item => item.id !== id)))
+  }
+
+  async function saveBillingSettings(settings: BillingSettings) {
+    return run(async () => {
+      const { error } = await supabase!.from('billing_settings').upsert({
+        user_id: session!.user.id, studio_name: settings.studioName, professional_name: settings.professionalName,
+        vat_number: settings.vatNumber, tax_code: settings.taxCode, address: settings.address, city: settings.city,
+        postal_code: settings.postalCode, province: settings.province, enpab_number: settings.enpabNumber, email: settings.email, phone: settings.phone,
+      })
+      if (error) throw error
+      setBillingSettings(settings); return settings
+    }, () => { setBillingSettings(settings); return settings })
   }
 
   function loadDemo() {
@@ -301,12 +404,27 @@ export function useWorkspace(session: Session | null) {
     const demoDiary: DiaryEntry[] = data.days[(now.getDay() + 6) % 7].flatMap(meal => meal.items.map(item => ({ id: `demo-${uid()}`, patientId, date: dateKey(now), foodId: item.foodId, grams: Math.max(1, Math.round(item.grams * 0.98)), meal: meal.name, source: 'patient', note: 'Consumo dimostrativo', createdAt: timestamp })))
     const start = new Date(now); start.setDate(now.getDate() + 1); start.setHours(10, 30, 0, 0)
     const end = new Date(start.getTime() + 45 * 60000)
+    const appointmentId = `demo-${uid()}`
+    const serviceId = `demo-${uid()}`
+    const demoServices: Service[] = [
+      { id: serviceId, name: 'Prima visita nutrizionale', category: 'Visite', duration: 60, price: 120, active: true },
+      { id: `demo-${uid()}`, name: 'Visita di controllo', category: 'Visite', duration: 45, price: 70, active: true },
+      { id: `demo-${uid()}`, name: 'Piano nutrizionale', category: 'Piani', duration: 45, price: 90, active: true },
+    ]
+    const demoInvoice: Invoice = {
+      id: `demo-${uid()}`, number: `${now.getFullYear()}-001`, patientId, appointmentId, issueDate: at(0), dueDate: at(14), serviceId: demoServices[1].id,
+      description: 'Visita di controllo · percorso dimostrativo', amount: 70, enpab: true, stamp: false, status: 'Emessa', paymentMethod: '',
+      recipientTaxCode: 'DEMO00000000D000', recipientAddress: 'Indirizzo dimostrativo, 1 · 00100 Roma (RM)', notes: 'Documento demo: non è una fattura fiscale.', createdAt: timestamp, updatedAt: timestamp,
+    }
     setPatients(current => [...current, patient])
     setPlans(current => [plan, ...current])
     setMeasurements(current => [...demoMeasurements, ...current])
     setDiary(current => [...demoDiary, ...current])
     setNotes(current => [{ id: `demo-${uid()}`, patientId, text: 'Verificare il diario e preparare il follow-up dimostrativo', kind: 'Attività', dueDate: at(2), done: false, createdAt: timestamp }, ...current])
-    setAppointments(current => [...current, { id: `demo-${uid()}`, patientId, startsAt: start.toISOString(), endsAt: end.toISOString(), visitType: 'Visita di controllo', notes: 'Follow-up dimostrativo' }].sort((a, b) => a.startsAt.localeCompare(b.startsAt)))
+    setAppointments(current => [...current, { id: appointmentId, patientId, startsAt: start.toISOString(), endsAt: end.toISOString(), visitType: 'Visita di controllo', notes: 'Follow-up dimostrativo' }].sort((a, b) => a.startsAt.localeCompare(b.startsAt)))
+    setServices(current => [...demoServices, ...current.filter(item => !item.id.startsWith('demo-'))])
+    setInvoices(current => [demoInvoice, ...current])
+    setBillingSettings({ studioName: 'Studio Vatia Demo', professionalName: 'Dott.ssa Vatia Demo', vatNumber: '00000000000', taxCode: 'DEMO00000000D000', address: 'Via dimostrativa 1', city: 'Roma', postalCode: '00100', province: 'RM', enpabNumber: '00000', email: 'studio.demo@example.com', phone: '+39 06 0000000' })
     return patient
   }
 
@@ -317,12 +435,17 @@ export function useWorkspace(session: Session | null) {
     setDiary(current => current.filter(item => !item.patientId.startsWith('demo-')))
     setNotes(current => current.filter(item => !item.patientId.startsWith('demo-')))
     setAppointments(current => current.filter(item => !item.patientId?.startsWith('demo-')))
+    setServices(current => current.filter(item => !item.id.startsWith('demo-')))
+    setInvoices(current => current.filter(item => !item.id.startsWith('demo-')))
+    if (billingSettings.studioName === 'Studio Vatia Demo') setBillingSettings(EMPTY_BILLING_SETTINGS)
   }
 
   return {
-    loading, error, setError, patients, foods, customFoods, plans, diary, measurements, notes, appointments,
+    loading, error, setError, billingWarning, patients, foods, customFoods, plans, diary, measurements, notes, appointments,
+    services, invoices, billingSettings,
     createPatient, updatePatient, addMeasurement, addNote, toggleNote, saveDiet, deleteDiet, addDiaryEntry, addDiaryEntries,
-    removeDiaryEntry, addFood, importFoods, addAppointment, deleteAppointment, loadDemo, clearDemo, reload: load,
+    removeDiaryEntry, addFood, importFoods, addAppointment, updateAppointment, deleteAppointment,
+    saveService, deleteService, saveInvoice, deleteInvoice, saveBillingSettings, loadDemo, clearDemo, reload: load,
     emptyDiet: createEmptyDiet,
   }
 }

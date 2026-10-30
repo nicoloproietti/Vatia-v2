@@ -1,4 +1,56 @@
-export type Page = 'oggi' | 'pazienti' | 'diario' | 'diete' | 'database' | 'insights' | 'calendario'
+export type Page = 'oggi' | 'pazienti' | 'diario' | 'diete' | 'database' | 'insights' | 'calendario' | 'fatture'
+export type InvoiceStatus = 'Bozza' | 'Emessa' | 'Pagata'
+
+export type Service = {
+  id: string
+  name: string
+  category: string
+  duration: number
+  price: number
+  active: boolean
+}
+
+export type Invoice = {
+  id: string
+  number: string
+  patientId: string
+  appointmentId?: string
+  issueDate: string
+  dueDate: string
+  serviceId?: string
+  description: string
+  amount: number
+  enpab: boolean
+  stamp: boolean
+  status: InvoiceStatus
+  paymentMethod: string
+  paymentDate?: string
+  recipientTaxCode: string
+  recipientAddress: string
+  notes: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type BillingSettings = {
+  studioName: string
+  professionalName: string
+  vatNumber: string
+  taxCode: string
+  address: string
+  city: string
+  postalCode: string
+  province: string
+  enpabNumber: string
+  email: string
+  phone: string
+}
+
+export const EMPTY_BILLING_SETTINGS: BillingSettings = {
+  studioName: '', professionalName: '', vatNumber: '', taxCode: '', address: '', city: '',
+  postalCode: '', province: '', enpabNumber: '', email: '', phone: '',
+}
+
 export type MealType = 'main' | 'light'
 export type Sex = 'male' | 'female'
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'veryActive'

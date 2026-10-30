@@ -1,29 +1,35 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { AlertCircle, ArrowRight, BarChart3, BookOpen, CalendarDays, Check, ChevronDown, Copy, Database, LayoutDashboard, Leaf, LogOut, Menu, Moon, Plus, Sun, Trash2, Users, Utensils, X, type LucideIcon } from 'lucide-react'
+import { AlertCircle, ArrowRight, BarChart3, BookOpen, CalendarDays, Check, ChevronDown, ClipboardCheck, Copy, Database, LayoutDashboard, Leaf, LogOut, Menu, Moon, Plus, ReceiptText, Sun, Trash2, Users, Utensils, X, type LucideIcon } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { useWorkspace } from './hooks/useWorkspace'
-import type { DietPlan, Page, Patient } from './types'
+import type { Appointment, DietPlan, Page, Patient } from './types'
 import { createEmptyDiet, formatDate, uid } from './lib/clinical'
 import AuthScreen from './components/AuthScreen'
 import NewPatientWizard from './components/NewPatientWizard'
 import PatientManager from './components/PatientManager'
 import DietBuilder from './components/DietBuilder'
-import DiaryView from './components/DiaryView'
 import DatabaseView from './components/DatabaseView'
-import { CalendarView, Dashboard, InsightsView } from './components/PracticeViews'
+import DashboardCenter from './components/DashboardCenter'
+import MonitoringView from './components/MonitoringView'
+import StudioInsights from './components/StudioInsights'
+import AgendaView from './components/AgendaView'
+import BillingView from './components/BillingView'
+import VatiaBuddy from './components/VatiaBuddy'
 import { EmptyState, PatientSelect } from './components/UI'
 import './App.css'
 import './clinical.css'
+import './product.css'
 
-const NAV: { id: Page; label: string; icon: LucideIcon }[] = [
-  { id: 'oggi', label: 'Oggi', icon: LayoutDashboard },
-  { id: 'pazienti', label: 'Pazienti', icon: Users },
-  { id: 'diario', label: 'Diario alimentare', icon: BookOpen },
-  { id: 'diete', label: 'Diete', icon: Utensils },
-  { id: 'database', label: 'Database alimenti', icon: Database },
-  { id: 'insights', label: 'Insight', icon: BarChart3 },
-  { id: 'calendario', label: 'Calendario', icon: CalendarDays },
+const NAV: { id: Page; label: string; icon: LucideIcon; group: string }[] = [
+  { id: 'oggi', label: 'Oggi', icon: LayoutDashboard, group: 'STUDIO' },
+  { id: 'pazienti', label: 'Pazienti', icon: Users, group: 'STUDIO' },
+  { id: 'calendario', label: 'Agenda', icon: CalendarDays, group: 'STUDIO' },
+  { id: 'fatture', label: 'Fatturazione', icon: ReceiptText, group: 'STUDIO' },
+  { id: 'diario', label: 'Monitoraggio', icon: ClipboardCheck, group: 'NUTRIZIONE' },
+  { id: 'diete', label: 'Diete', icon: Utensils, group: 'NUTRIZIONE' },
+  { id: 'database', label: 'Database alimenti', icon: Database, group: 'NUTRIZIONE' },
+  { id: 'insights', label: 'Insight di studio', icon: BarChart3, group: 'NUTRIZIONE' },
 ]
 
 export default function App() {
@@ -33,6 +39,7 @@ export default function App() {
   const [page, setPage] = useState<Page>('oggi')
   const [selectedPatientId, setSelectedPatientId] = useState('')
   const [activePlan, setActivePlan] = useState<DietPlan | null>(null)
+  const [billingAppointment, setBillingAppointment] = useState<Appointment | null>(null)
   const [builderDirty, setBuilderDirty] = useState(false)
   const [newPatientOpen, setNewPatientOpen] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
@@ -48,7 +55,6 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => { setSession(next); setAuthLoading(false) })
     return () => subscription.unsubscribe()
   }, [])
-
   useEffect(() => { if (!toast) return; const timeout = window.setTimeout(() => setToast(''), 4200); return () => window.clearTimeout(timeout) }, [toast])
 
   function navigate(next: Page) {
@@ -70,7 +76,8 @@ export default function App() {
   }
   function openDiet(plan: DietPlan) { setSelectedPatientId(plan.patientId); setBuilderDirty(false); setActivePlan(structuredClone(plan)); setPage('diete') }
   function openDiary(patientId: string) { setSelectedPatientId(patientId); navigate('diario') }
-  function loadDemo() { const patient = workspace.loadDemo(); if (patient) { setSelectedPatientId(patient.id); notify('Percorso demo caricato: esplora pure, resta solo in questo browser.') } }
+  function billAppointment(appointment: Appointment) { setBillingAppointment(appointment); navigate('fatture') }
+  function loadDemo() { const patient = workspace.loadDemo(); if (patient) { setSelectedPatientId(patient.id); notify('Studio demo pronto: clinica, agenda, monitoraggio e fatturazione sono esplorabili.') } }
   function clearDemo() { workspace.clearDemo(); setSelectedPatientId(''); notify('Dati demo rimossi. Puoi iniziare con il tuo primo paziente.') }
 
   async function createPatient(input: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'>, openDiet: boolean) {
@@ -88,26 +95,28 @@ export default function App() {
 
   const userName = session?.user.user_metadata?.full_name?.split(' ')[0] || session?.user.email?.split('@')[0] || (guest ? 'Ospite' : 'Nutrizionista')
   const pageTitle = activePlan ? 'Builder dieta' : NAV.find(item => item.id === page)?.label ?? 'Oggi'
+  const showPatientContext = workspace.patients.length > 0 && !activePlan && ['pazienti', 'diete'].includes(page)
 
   return <div className={`app-shell ${dark ? 'dark' : ''}`}>
     {mobileNav && <button className="nav-backdrop" aria-label="Chiudi navigazione" onClick={() => setMobileNav(false)} />}
     <aside className={`sidebar ${mobileNav ? 'open' : ''}`}>
-      <div className="brand"><div className="brand-mark"><Leaf size={23} strokeWidth={2.4} /></div><span>vatia</span><small>PRO</small></div>
-      <div className="workspace"><div className="workspace-icon">NP</div><div><strong>Studio Nutrizionale</strong><span>Area professionale</span></div><ChevronDown size={15} /></div>
-      <nav className="main-nav" aria-label="Navigazione principale"><span className="nav-caption">AREA DI LAVORO</span>{NAV.map(item => <button key={item.id} className={page === item.id ? 'active' : ''} onClick={() => navigate(item.id)}><item.icon size={19} /><span>{item.label}</span>{item.id === 'pazienti' && <b>{workspace.patients.length}</b>}{item.id === 'diete' && <b>{workspace.plans.length}</b>}</button>)}</nav>
+      <div className="brand"><VatiaBuddy size={40} className="brand-buddy" /><span>vatia</span><small>PRO</small></div>
+      <div className="workspace"><div className="workspace-icon">NP</div><div><strong>{workspace.billingSettings.studioName || 'Studio Nutrizionale'}</strong><span>Area professionale</span></div><ChevronDown size={15} /></div>
+      <nav className="main-nav" aria-label="Navigazione principale">{['STUDIO', 'NUTRIZIONE'].map(group => <div className="nav-group" key={group}><span className="nav-caption">{group}</span>{NAV.filter(item => item.group === group).map(item => <button key={item.id} className={page === item.id ? 'active' : ''} onClick={() => navigate(item.id)}><item.icon size={18} /><span>{item.label}</span>{item.id === 'pazienti' && <b>{workspace.patients.length}</b>}{item.id === 'diete' && <b>{workspace.plans.length}</b>}{item.id === 'fatture' && workspace.invoices.some(invoice => invoice.status === 'Emessa') && <b>{workspace.invoices.filter(invoice => invoice.status === 'Emessa').length}</b>}</button>)}</div>)}</nav>
       <div className="sidebar-bottom"><div className={`sync-card ${session ? 'connected' : ''}`}><div><span className="status-dot" />{session ? 'Spazio cloud protetto' : 'Area locale attiva'}</div><p>{session ? 'Dati separati per account nel progetto Vatia dedicato.' : 'I dati restano in questo browser. Accedi con un account per sincronizzarli.'}</p></div><button className="profile-button" title={session ? 'Esci da Vatia' : guest ? 'Esci dall’area ospite' : 'Profilo locale'} onClick={() => { if (session) void supabase?.auth.signOut(); else if (guest) exitGuest() }}><div className="avatar">{userName.slice(0, 2).toUpperCase()}</div><div><strong>{session?.user.email ?? (guest ? 'Ospite' : 'Area locale')}</strong><span>{session ? 'Esci dall’account' : guest ? 'Torna all’accesso' : 'Nutrizionista'}</span></div>{session || guest ? <LogOut size={18} /> : null}</button></div>
     </aside>
     <main className="main-area">
-      <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMobileNav(true)} aria-label="Apri navigazione"><Menu size={21} /></button><div className="breadcrumb"><span>Vatia</span><i>/</i><strong>{pageTitle}</strong></div><div className="topbar-actions">{workspace.patients.length > 0 && !activePlan && <PatientSelect patients={workspace.patients} value={effectivePatientId} onChange={setSelectedPatientId} label="Paziente attivo" />}<button className="icon-button" onClick={toggleTheme} aria-label="Cambia tema">{dark ? <Sun size={19} /> : <Moon size={19} />}</button><button className="button primary compact" onClick={() => setNewPatientOpen(true)}><Plus size={17} />Nuovo paziente</button></div></header>
+      <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMobileNav(true)} aria-label="Apri navigazione"><Menu size={21} /></button><div className="breadcrumb"><span>Vatia</span><i>/</i><strong>{pageTitle}</strong></div><div className="topbar-actions">{showPatientContext && <PatientSelect patients={workspace.patients} value={effectivePatientId} onChange={setSelectedPatientId} label="Paziente attivo" />}<button className="icon-button" onClick={toggleTheme} aria-label="Cambia tema">{dark ? <Sun size={19} /> : <Moon size={19} />}</button><button className="button primary compact" onClick={() => setNewPatientOpen(true)}><Plus size={17} />Nuovo paziente</button></div></header>
       {workspace.error && <div className="workspace-error" role="alert"><AlertCircle size={17} /><span>{workspace.error}</span><button className="icon-button" onClick={() => workspace.setError('')} aria-label="Chiudi errore"><X size={16} /></button></div>}
       <div className={`content ${activePlan ? 'builder-content' : ''}`}>
-        {page === 'oggi' && <Dashboard workspace={workspace} userName={userName} selectedPatientId={effectivePatientId} onSelectPatient={setSelectedPatientId} navigate={navigate} onNewPatient={() => setNewPatientOpen(true)} onNewAppointment={() => navigate('calendario')} onLoadDemo={guest && !session ? loadDemo : undefined} onClearDemo={guest && !session ? clearDemo : undefined} />}
+        {page === 'oggi' && <DashboardCenter workspace={workspace} userName={userName} navigate={navigate} onSelectPatient={setSelectedPatientId} onNewPatient={() => setNewPatientOpen(true)} onLoadDemo={guest && !session ? loadDemo : undefined} onClearDemo={guest && !session ? clearDemo : undefined} />}
         {page === 'pazienti' && <PatientManager workspace={workspace} selectedPatientId={effectivePatientId} onSelectPatient={setSelectedPatientId} onNewPatient={() => setNewPatientOpen(true)} onNewDiet={newDiet} onOpenDiet={openDiet} onOpenDiary={openDiary} onNewAppointment={() => navigate('calendario')} notify={notify} />}
-        {page === 'diario' && <DiaryView workspace={workspace} patient={selectedPatient} patients={workspace.patients} onSelectPatient={setSelectedPatientId} onNewDiet={newDiet} notify={notify} />}
+        {page === 'diario' && <MonitoringView workspace={workspace} onNewDiet={newDiet} notify={notify} />}
         {page === 'diete' && (activePlan && selectedPatient ? <DietBuilder key={activePlan.id} workspace={workspace} plan={activePlan} patient={selectedPatient} onBack={() => { setActivePlan(null); setBuilderDirty(false) }} onDirtyChange={setBuilderDirty} notify={notify} /> : <DietsList workspace={workspace} onNewDiet={newDiet} onOpenDiet={openDiet} notify={notify} />)}
         {page === 'database' && <DatabaseView workspace={workspace} notify={notify} />}
-        {page === 'insights' && <InsightsView workspace={workspace} patient={selectedPatient} patients={workspace.patients} onSelectPatient={setSelectedPatientId} />}
-        {page === 'calendario' && <CalendarView workspace={workspace} initialPatientId={effectivePatientId} onSelectPatient={id => { setSelectedPatientId(id); navigate('pazienti') }} notify={notify} />}
+        {page === 'insights' && <StudioInsights workspace={workspace} navigate={navigate} onSelectPatient={setSelectedPatientId} />}
+        {page === 'calendario' && <AgendaView workspace={workspace} initialPatientId={effectivePatientId} onSelectPatient={id => { setSelectedPatientId(id); navigate('pazienti') }} onBill={billAppointment} notify={notify} />}
+        {page === 'fatture' && <BillingView workspace={workspace} initialAppointment={billingAppointment} onAppointmentHandled={() => setBillingAppointment(null)} notify={notify} />}
       </div>
     </main>
     {newPatientOpen && <NewPatientWizard onClose={() => setNewPatientOpen(false)} onCreate={createPatient} />}
