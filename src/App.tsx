@@ -29,6 +29,7 @@ const NAV: { id: Page; label: string; icon: LucideIcon }[] = [
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [authLoading, setAuthLoading] = useState(Boolean(supabase))
+  const [guest, setGuest] = useState(() => localStorage.getItem('vatia-v2-guest') === 'true')
   const [page, setPage] = useState<Page>('oggi')
   const [selectedPatientId, setSelectedPatientId] = useState('')
   const [activePlan, setActivePlan] = useState<DietPlan | null>(null)
@@ -52,6 +53,8 @@ export default function App() {
   function navigate(next: Page) { setActivePlan(null); setPage(next); setMobileNav(false) }
   function notify(message: string) { setToast(message) }
   function toggleTheme() { const next = !dark; setDark(next); localStorage.setItem('vatia-v2-dark', String(next)) }
+  function enterGuest() { localStorage.setItem('vatia-v2-guest', 'true'); setGuest(true) }
+  function exitGuest() { localStorage.removeItem('vatia-v2-guest'); setGuest(false); setPage('oggi'); setActivePlan(null); setSelectedPatientId('') }
   function newDiet(patientId = effectivePatientId) {
     const patient = workspace.patients.find(item => item.id === patientId)
     if (!patient) { setNewPatientOpen(true); return }
@@ -74,9 +77,9 @@ export default function App() {
   }
 
   if (authLoading || (session && workspace.loading)) return <main className="auth-shell app-shell"><div className="auth-loading"><div className="brand-mark"><Leaf size={23} /></div><strong>Vatia</strong><span>Sto preparando il tuo spazio di lavoro…</span></div></main>
-  if (supabase && !session) return <AuthScreen />
+  if (supabase && !session && !guest) return <AuthScreen onGuest={enterGuest} />
 
-  const userName = session?.user.user_metadata?.full_name?.split(' ')[0] || session?.user.email?.split('@')[0] || 'Nutrizionista'
+  const userName = session?.user.user_metadata?.full_name?.split(' ')[0] || session?.user.email?.split('@')[0] || (guest ? 'Ospite' : 'Nutrizionista')
   const pageTitle = activePlan ? 'Builder dieta' : NAV.find(item => item.id === page)?.label ?? 'Oggi'
 
   return <div className={`app-shell ${dark ? 'dark' : ''}`}>
@@ -85,7 +88,7 @@ export default function App() {
       <div className="brand"><div className="brand-mark"><Leaf size={23} strokeWidth={2.4} /></div><span>vatia</span><small>PRO</small></div>
       <div className="workspace"><div className="workspace-icon">NP</div><div><strong>Studio Nutrizionale</strong><span>Area professionale</span></div><ChevronDown size={15} /></div>
       <nav className="main-nav" aria-label="Navigazione principale"><span className="nav-caption">AREA DI LAVORO</span>{NAV.map(item => <button key={item.id} className={page === item.id ? 'active' : ''} onClick={() => navigate(item.id)}><item.icon size={19} /><span>{item.label}</span>{item.id === 'pazienti' && <b>{workspace.patients.length}</b>}{item.id === 'diete' && <b>{workspace.plans.length}</b>}</button>)}</nav>
-      <div className="sidebar-bottom"><div className={`sync-card ${session ? 'connected' : ''}`}><div><span className="status-dot" />{session ? 'Spazio cloud protetto' : 'Area locale attiva'}</div><p>{session ? 'Dati separati per account nel progetto Vatia dedicato.' : 'I dati restano in questo browser. Configura Supabase per la sincronizzazione.'}</p></div><button className="profile-button" title={session ? 'Esci da Vatia' : 'Profilo locale'} onClick={() => { if (session) void supabase?.auth.signOut() }}><div className="avatar">{userName.slice(0, 2).toUpperCase()}</div><div><strong>{session?.user.email ?? 'Area locale'}</strong><span>{session ? 'Esci dall’account' : 'Nutrizionista'}</span></div>{session ? <LogOut size={18} /> : null}</button></div>
+      <div className="sidebar-bottom"><div className={`sync-card ${session ? 'connected' : ''}`}><div><span className="status-dot" />{session ? 'Spazio cloud protetto' : 'Area locale attiva'}</div><p>{session ? 'Dati separati per account nel progetto Vatia dedicato.' : 'I dati restano in questo browser. Accedi con un account per sincronizzarli.'}</p></div><button className="profile-button" title={session ? 'Esci da Vatia' : guest ? 'Esci dall’area ospite' : 'Profilo locale'} onClick={() => { if (session) void supabase?.auth.signOut(); else if (guest) exitGuest() }}><div className="avatar">{userName.slice(0, 2).toUpperCase()}</div><div><strong>{session?.user.email ?? (guest ? 'Ospite' : 'Area locale')}</strong><span>{session ? 'Esci dall’account' : guest ? 'Torna all’accesso' : 'Nutrizionista'}</span></div>{session || guest ? <LogOut size={18} /> : null}</button></div>
     </aside>
     <main className="main-area">
       <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMobileNav(true)} aria-label="Apri navigazione"><Menu size={21} /></button><div className="breadcrumb"><span>Vatia</span><i>/</i><strong>{pageTitle}</strong></div><div className="topbar-actions">{workspace.patients.length > 0 && <PatientSelect patients={workspace.patients} value={effectivePatientId} onChange={setSelectedPatientId} label="Paziente attivo" />}<button className="icon-button" onClick={toggleTheme} aria-label="Cambia tema">{dark ? <Sun size={19} /> : <Moon size={19} />}</button><button className="button primary compact" onClick={() => setNewPatientOpen(true)}><Plus size={17} />Nuovo paziente</button></div></header>

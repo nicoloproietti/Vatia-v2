@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { ArrowRight, Leaf, LoaderCircle, LockKeyhole, Mail } from 'lucide-react'
+import { ArrowRight, Leaf, LoaderCircle, LockKeyhole, Mail, UserRound } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
-export default function AuthScreen() {
+export default function AuthScreen({ onGuest }: { onGuest: () => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -52,7 +52,8 @@ export default function AuthScreen() {
         <button className="auth-switch" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setMessage('') }}>
           {mode === 'login' ? 'Non hai un account? Registrati' : 'Hai già un account? Accedi'}
         </button>
-        <small className="auth-privacy">Dati protetti da autenticazione e regole di accesso per singolo account.</small>
+        <button className="button secondary auth-guest" onClick={onGuest}><UserRound size={16} />Accedi come ospite</button>
+        <small className="auth-privacy">Area ospite: i dati restano solo in questo browser.</small>
       </section>
     </main>
   )
