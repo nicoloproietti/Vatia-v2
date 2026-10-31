@@ -1,0 +1,57 @@
+/* Calendar interoperability and guided voice anamnesis */
+.calendar-actions { padding: 15px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface-soft); }
+.calendar-actions-heading { display: flex; align-items: center; gap: 10px; }
+.calendar-actions-icon { width: 34px; height: 34px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 9px; background: var(--primary-soft); color: var(--primary); }
+.calendar-actions h3 { margin: 0; font-size: 12px; }
+.calendar-actions-heading p { margin: 4px 0 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.calendar-privacy-options { display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 13px 0; }
+.calendar-privacy-options label { display: flex; flex-direction: row; align-items: center; gap: 7px; color: var(--muted); font-size: 9px; font-weight: 500; }
+.calendar-privacy-options input { width: 14px; height: 14px; margin: 0; accent-color: var(--primary); }
+.calendar-actions-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.calendar-actions-note { margin: 10px 0 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.calendar-feedback { display: flex; align-items: flex-start; gap: 6px; margin: 11px 0 0; padding: 9px 10px; border-radius: 8px; font-size: 9px; line-height: 1.5; }
+.calendar-feedback svg { flex: 0 0 auto; margin-top: 1px; }
+.calendar-feedback.success { background: var(--primary-soft); color: var(--primary); }
+.calendar-feedback.error { background: #fff0ee; color: #a43b31; }
+.dark .calendar-feedback.error { background: #3b2322; color: #ef9c92; }
+.anamnesis-header-actions { display: flex; align-items: center; gap: 8px; }
+.voice-privacy { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 18px; padding: 13px; border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border)); border-radius: 10px; background: var(--primary-soft); }
+.voice-privacy > svg { flex: 0 0 auto; color: var(--primary); }
+.voice-privacy strong { display: block; font-size: 11px; }
+.voice-privacy p { margin: 5px 0 0; color: var(--muted); font-size: 9px; line-height: 1.55; }
+.voice-transcript-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+.voice-transcript-heading > label { color: var(--muted); font-size: 10px; font-weight: 600; }
+.recording-indicator { display: flex; align-items: center; gap: 6px; color: #bd4c42; font-size: 9px; font-weight: 650; }
+.recording-indicator i { width: 7px; height: 7px; border-radius: 50%; background: #d75c50; animation: recording-pulse 1.2s ease-in-out infinite; }
+@keyframes recording-pulse { 50% { opacity: .35; } }
+.voice-transcript { min-height: 155px; background: var(--surface); font-size: 12px; line-height: 1.65; }
+.voice-hint { margin: 7px 0 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.voice-controls { display: flex; justify-content: space-between; gap: 10px; margin-top: 15px; }
+.voice-controls .button.recording { border-color: #df9d95; color: #b6463c; }
+.voice-feedback { margin: 13px 0 0; padding: 10px 12px; border-radius: 8px; font-size: 10px; line-height: 1.5; }
+.voice-feedback.error { background: #fff0ee; color: #a43b31; }
+.voice-feedback.notice { background: #fff7e6; color: #916718; }
+.dark .voice-feedback.error { background: #3b2322; color: #ef9c92; }
+.dark .voice-feedback.notice { background: #40351d; color: #e5ba65; }
+.voice-review { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
+.voice-review-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.voice-review-heading h3 { margin: 5px 0 0; font-size: 14px; }
+.voice-field-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.voice-field-list > label { display: flex; flex-direction: row; align-items: flex-start; gap: 9px; min-width: 0; padding: 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-soft); cursor: pointer; }
+.voice-field-list > label.selected { border-color: color-mix(in srgb, var(--primary) 42%, var(--border)); background: var(--primary-soft); }
+.voice-field-list input { width: 14px; height: 14px; flex: 0 0 auto; margin: 2px 0 0; accent-color: var(--primary); }
+.voice-field-list label > span { flex: 1; min-width: 0; }
+.voice-field-list strong, .voice-field-list b, .voice-field-list small { display: block; }
+.voice-field-list strong { color: var(--muted); font-size: 9px; font-weight: 600; }
+.voice-field-list b { margin-top: 5px; overflow-wrap: anywhere; color: var(--text); font-size: 10px; font-weight: 600; line-height: 1.45; }
+.voice-field-list small { margin-top: 5px; overflow-wrap: anywhere; color: var(--muted); font-size: 8px; line-height: 1.4; }
+.voice-field-list label > svg { flex: 0 0 auto; color: var(--primary); }
+.voice-review-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+.voice-review-footer > span { color: var(--muted); font-size: 9px; }
+@media (max-width: 580px) {
+  .calendar-privacy-options, .voice-controls, .voice-review-footer { align-items: stretch; flex-direction: column; }
+  .calendar-actions-buttons .button, .voice-controls .button { flex: 1; }
+  .voice-field-list { grid-template-columns: 1fr; }
+  .anamnesis-header-actions { align-items: flex-end; flex-direction: column-reverse; }
+  .voice-review-footer > span { line-height: 1.5; }
+}
