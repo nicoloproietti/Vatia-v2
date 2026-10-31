@@ -1,5 +1,21 @@
-export type Page = 'oggi' | 'pazienti' | 'diario' | 'diete' | 'database' | 'insights' | 'calendario' | 'fatture'
+export type Page = 'oggi' | 'pazienti' | 'diario' | 'diete' | 'database' | 'insights' | 'calendario' | 'fatture' | 'sedi'
 export type InvoiceStatus = 'Bozza' | 'Emessa' | 'Pagata'
+
+export type Office = {
+  id: string
+  name: string
+  address: string
+  city: string
+  postalCode: string
+  province: string
+  email: string
+  phone: string
+  color: string
+  openTime: string
+  closeTime: string
+  workDays: number[]
+  active: boolean
+}
 
 export type Service = {
   id: string
@@ -182,6 +198,7 @@ export type DiaryEntry = {
 export type Appointment = {
   id: string
   patientId: string | null
+  officeId?: string
   startsAt: string
   endsAt: string
   visitType: string

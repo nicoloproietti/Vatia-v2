@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { AlertCircle, ArrowRight, BarChart3, BookOpen, CalendarDays, Check, ChevronDown, ClipboardCheck, Copy, Database, LayoutDashboard, Leaf, LogOut, Menu, Moon, Plus, ReceiptText, Sun, Trash2, Users, Utensils, X, type LucideIcon } from 'lucide-react'
+import { AlertCircle, ArrowRight, BarChart3, BookOpen, Building2, CalendarDays, Check, ChevronDown, ClipboardCheck, Copy, Database, LayoutDashboard, Leaf, LogOut, Menu, Moon, Plus, ReceiptText, Sun, Trash2, Users, Utensils, X, type LucideIcon } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { useWorkspace } from './hooks/useWorkspace'
 import type { Appointment, DietPlan, Page, Patient } from './types'
@@ -15,6 +15,7 @@ import MonitoringView from './components/MonitoringView'
 import StudioInsights from './components/StudioInsights'
 import AgendaView from './components/AgendaView'
 import BillingView from './components/BillingView'
+import OfficesView from './components/OfficesView'
 import VatiaBuddy from './components/VatiaBuddy'
 import { EmptyState, PatientSelect } from './components/UI'
 import './App.css'
@@ -25,6 +26,7 @@ const NAV: { id: Page; label: string; icon: LucideIcon; group: string }[] = [
   { id: 'oggi', label: 'Oggi', icon: LayoutDashboard, group: 'STUDIO' },
   { id: 'pazienti', label: 'Pazienti', icon: Users, group: 'STUDIO' },
   { id: 'calendario', label: 'Agenda', icon: CalendarDays, group: 'STUDIO' },
+  { id: 'sedi', label: 'Sedi', icon: Building2, group: 'STUDIO' },
   { id: 'fatture', label: 'Fatturazione', icon: ReceiptText, group: 'STUDIO' },
   { id: 'diario', label: 'Monitoraggio', icon: ClipboardCheck, group: 'NUTRIZIONE' },
   { id: 'diete', label: 'Diete', icon: Utensils, group: 'NUTRIZIONE' },
@@ -38,6 +40,7 @@ export default function App() {
   const [guest, setGuest] = useState(() => localStorage.getItem('vatia-v2-guest') === 'true')
   const [page, setPage] = useState<Page>('oggi')
   const [selectedPatientId, setSelectedPatientId] = useState('')
+  const [agendaOfficeId, setAgendaOfficeId] = useState('all')
   const [activePlan, setActivePlan] = useState<DietPlan | null>(null)
   const [billingAppointment, setBillingAppointment] = useState<Appointment | null>(null)
   const [builderDirty, setBuilderDirty] = useState(false)
@@ -109,13 +112,14 @@ export default function App() {
       <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMobileNav(true)} aria-label="Apri navigazione"><Menu size={21} /></button><div className="breadcrumb"><span>Vatia</span><i>/</i><strong>{pageTitle}</strong></div><div className="topbar-actions">{showPatientContext && <PatientSelect patients={workspace.patients} value={effectivePatientId} onChange={setSelectedPatientId} label="Paziente attivo" />}<button className="icon-button" onClick={toggleTheme} aria-label="Cambia tema">{dark ? <Sun size={19} /> : <Moon size={19} />}</button><button className="button primary compact" onClick={() => setNewPatientOpen(true)}><Plus size={17} />Nuovo paziente</button></div></header>
       {workspace.error && <div className="workspace-error" role="alert"><AlertCircle size={17} /><span>{workspace.error}</span><button className="icon-button" onClick={() => workspace.setError('')} aria-label="Chiudi errore"><X size={16} /></button></div>}
       <div className={`content ${activePlan ? 'builder-content' : ''}`}>
-        {page === 'oggi' && <DashboardCenter workspace={workspace} userName={userName} navigate={navigate} onSelectPatient={setSelectedPatientId} onNewPatient={() => setNewPatientOpen(true)} onLoadDemo={guest && !session ? loadDemo : undefined} onClearDemo={guest && !session ? clearDemo : undefined} />}
+        {page === 'oggi' && <DashboardCenter key={session?.user.id ?? 'guest'} workspace={workspace} userName={userName} layoutOwner={session?.user.id ?? 'guest'} navigate={navigate} onSelectPatient={setSelectedPatientId} onNewPatient={() => setNewPatientOpen(true)} onLoadDemo={guest && !session ? loadDemo : undefined} onClearDemo={guest && !session ? clearDemo : undefined} />}
         {page === 'pazienti' && <PatientManager workspace={workspace} selectedPatientId={effectivePatientId} onSelectPatient={setSelectedPatientId} onNewPatient={() => setNewPatientOpen(true)} onNewDiet={newDiet} onOpenDiet={openDiet} onOpenDiary={openDiary} onNewAppointment={() => navigate('calendario')} notify={notify} />}
         {page === 'diario' && <MonitoringView workspace={workspace} onNewDiet={newDiet} notify={notify} />}
         {page === 'diete' && (activePlan && selectedPatient ? <DietBuilder key={activePlan.id} workspace={workspace} plan={activePlan} patient={selectedPatient} onBack={() => { setActivePlan(null); setBuilderDirty(false) }} onDirtyChange={setBuilderDirty} notify={notify} /> : <DietsList workspace={workspace} onNewDiet={newDiet} onOpenDiet={openDiet} notify={notify} />)}
         {page === 'database' && <DatabaseView workspace={workspace} notify={notify} />}
         {page === 'insights' && <StudioInsights workspace={workspace} navigate={navigate} onSelectPatient={setSelectedPatientId} />}
-        {page === 'calendario' && <AgendaView workspace={workspace} initialPatientId={effectivePatientId} onSelectPatient={id => { setSelectedPatientId(id); navigate('pazienti') }} onBill={billAppointment} notify={notify} />}
+        {page === 'calendario' && <AgendaView workspace={workspace} initialPatientId={effectivePatientId} initialOfficeId={agendaOfficeId} onOfficeChange={setAgendaOfficeId} onSelectPatient={id => { setSelectedPatientId(id); navigate('pazienti') }} onBill={billAppointment} notify={notify} />}
+        {page === 'sedi' && <OfficesView workspace={workspace} onOpenAgenda={id => { setAgendaOfficeId(id); navigate('calendario') }} notify={notify} />}
         {page === 'fatture' && <BillingView workspace={workspace} initialAppointment={billingAppointment} onAppointmentHandled={() => setBillingAppointment(null)} notify={notify} />}
       </div>
     </main>
