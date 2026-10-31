@@ -57,6 +57,7 @@ create table public.appointments (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
   patient_id uuid references public.patients(id) on delete set null,
+  google_event_id text,
   starts_at timestamptz not null,
   ends_at timestamptz not null,
   visit_type text not null,
@@ -83,3 +84,4 @@ create index patients_user_idx on public.patients(user_id);
 create index diets_patient_idx on public.diets(patient_id);
 create index diary_patient_date_idx on public.diary_entries(patient_id, entry_date);
 create index appointments_user_date_idx on public.appointments(user_id, starts_at);
+create index appointments_user_google_event_idx on public.appointments(user_id, google_event_id) where google_event_id is not null;

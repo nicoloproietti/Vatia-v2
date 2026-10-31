@@ -199,6 +199,7 @@ export type Appointment = {
   id: string
   patientId: string | null
   officeId?: string
+  googleEventId?: string
   startsAt: string
   endsAt: string
   visitType: string

@@ -116,7 +116,7 @@ export function useWorkspace(session: Session | null) {
         bodyFat: row.body_fat == null ? undefined : Number(row.body_fat), note: row.note ?? '',
       })))
       setNotes((noteResult.data ?? []).map(row => ({ id: row.id, patientId: row.patient_id, text: row.text, kind: row.kind === 'Attività' ? 'Attività' : 'Nota', dueDate: row.due_date ?? undefined, done: row.done, createdAt: row.created_at })))
-      setAppointments((appointmentResult.data ?? []).map(row => ({ id: row.id, patientId: row.patient_id, officeId: row.office_id ? String(row.office_id) : undefined, startsAt: row.starts_at, endsAt: row.ends_at, visitType: row.visit_type, notes: row.notes ?? '' })))
+      setAppointments((appointmentResult.data ?? []).map(row => ({ id: row.id, patientId: row.patient_id, officeId: row.office_id ? String(row.office_id) : undefined, googleEventId: row.google_event_id ? String(row.google_event_id) : undefined, startsAt: row.starts_at, endsAt: row.ends_at, visitType: row.visit_type, notes: row.notes ?? '' })))
       try {
         const [serviceResult, invoiceResult, settingsResult] = await Promise.all([
           supabase.from('services').select('*').order('name'),
@@ -315,7 +315,7 @@ export function useWorkspace(session: Session | null) {
 
   async function addAppointment(input: Omit<Appointment, 'id'>) {
     return run(async () => {
-      const { data, error } = await supabase!.from('appointments').insert({ patient_id: input.patientId || null, office_id: input.officeId || null, starts_at: input.startsAt, ends_at: input.endsAt, visit_type: input.visitType, notes: input.notes || null }).select().single()
+      const { data, error } = await supabase!.from('appointments').insert({ patient_id: input.patientId || null, office_id: input.officeId || null, google_event_id: input.googleEventId || null, starts_at: input.startsAt, ends_at: input.endsAt, visit_type: input.visitType, notes: input.notes || null }).select().single()
       if (error) throw error
       const appointment = { ...input, id: data.id }
       setAppointments(current => [...current, appointment].sort((a, b) => a.startsAt.localeCompare(b.startsAt))); return appointment
@@ -324,7 +324,7 @@ export function useWorkspace(session: Session | null) {
 
   async function updateAppointment(appointment: Appointment) {
     return run(async () => {
-      const { error } = await supabase!.from('appointments').update({ patient_id: appointment.patientId || null, office_id: appointment.officeId || null, starts_at: appointment.startsAt, ends_at: appointment.endsAt, visit_type: appointment.visitType, notes: appointment.notes || null }).eq('id', appointment.id)
+      const { error } = await supabase!.from('appointments').update({ patient_id: appointment.patientId || null, office_id: appointment.officeId || null, google_event_id: appointment.googleEventId || null, starts_at: appointment.startsAt, ends_at: appointment.endsAt, visit_type: appointment.visitType, notes: appointment.notes || null }).eq('id', appointment.id)
       if (error) throw error
       setAppointments(current => current.map(item => item.id === appointment.id ? appointment : item).sort((a, b) => a.startsAt.localeCompare(b.startsAt)))
       return appointment

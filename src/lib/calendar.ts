@@ -146,7 +146,19 @@ async function googleAccessToken() {
   return accessToken
 }
 
-async function calendarFetch(url: string, init: RequestInit = {}) {
+export type GoogleCalendarEvent = {
+  id: string
+  summary?: string
+  status?: string
+  start?: { dateTime?: string; date?: string; timeZone?: string }
+  end?: { dateTime?: string; date?: string; timeZone?: string }
+  extendedProperties?: { private?: Record<string, string> }
+}
+
+type GoogleCalendarList = { items?: GoogleCalendarEvent[] }
+type GoogleEventSearch = { items?: { id: string }[] }
+
+async function calendarFetch<T>(url: string, init: RequestInit = {}): Promise<T | null> {
   const token = await googleAccessToken()
   const response = await fetch(url, {
     ...init,
@@ -158,7 +170,19 @@ async function calendarFetch(url: string, init: RequestInit = {}) {
     throw new Error('La sessione Google è scaduta. Riprova la sincronizzazione.')
   }
   if (!response.ok) throw new Error(`Google Calendar ha risposto con errore ${response.status}. Verifica autorizzazioni e configurazione OAuth.`)
-  return response.status === 204 ? null : response.json() as Promise<{ id?: string; items?: { id: string }[] }>
+  return response.status === 204 ? null : response.json() as Promise<T>
+}
+
+export async function listGoogleCalendarEvents(timeMin: string, timeMax: string) {
+  const start = validDate(timeMin)
+  const end = validDate(timeMax)
+  if (end <= start) throw new Error('L’intervallo di importazione non è valido.')
+  const query = new URLSearchParams({
+    timeMin: start.toISOString(), timeMax: end.toISOString(), singleEvents: 'true', orderBy: 'startTime',
+    showDeleted: 'false', maxResults: '250', fields: 'items(id,summary,status,start,end,extendedProperties)',
+  })
+  const result = await calendarFetch<GoogleCalendarList>(`${GOOGLE_API}?${query}`)
+  return (result?.items ?? []).filter(event => event.id && event.status !== 'cancelled')
 }
 
 export async function syncAppointmentToGoogle(input: CalendarEventInput): Promise<'created' | 'updated'> {
@@ -166,9 +190,12 @@ export async function syncAppointmentToGoogle(input: CalendarEventInput): Promis
   if (!appointment.id) throw new Error('Salva prima l’appuntamento, poi sincronizzalo con Google Calendar.')
   validDate(appointment.startsAt)
   validDate(appointment.endsAt)
-  const query = new URLSearchParams({ privateExtendedProperty: `vatiaAppointmentId=${appointment.id}`, maxResults: '1' })
-  const existing = await calendarFetch(`${GOOGLE_API}?${query}`)
-  const eventId = existing?.items?.[0]?.id
+  let eventId = appointment.googleEventId
+  if (!eventId) {
+    const query = new URLSearchParams({ privateExtendedProperty: `vatiaAppointmentId=${appointment.id}`, maxResults: '1' })
+    const existing = await calendarFetch<GoogleEventSearch>(`${GOOGLE_API}?${query}`)
+    eventId = existing?.items?.[0]?.id
+  }
   const description = ['Appuntamento gestito con Vatia.', input.includeNotes ? appointment.notes : ''].filter(Boolean).join('\n\n')
   const body = JSON.stringify({
     summary: eventSummary(input),
