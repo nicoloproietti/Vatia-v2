@@ -86,6 +86,8 @@ export default function GoogleCalendarImport({ workspace, initialDate, onClose, 
           endsAt: row.event.end!.dateTime!,
           visitType: eventVisitType(row.event, patient),
           googleEventId: row.event.id,
+          googleUpdatedAt: row.event.updated,
+          lastSyncedAt: new Date().toISOString(),
         }
         if (row.existing) {
           await workspace.updateAppointment({ ...row.existing, ...input })

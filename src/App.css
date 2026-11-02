@@ -49,7 +49,7 @@ button { border: 0; }
 .workspace strong { font-size: 11px; font-weight: 650; }
 .workspace span { margin-top: 3px; color: var(--muted); font-size: 10px; }
 .workspace > svg { color: var(--muted); }
-.main-nav { display: flex; flex-direction: column; gap: 4px; }
+.main-nav { min-height: 0; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; scrollbar-width: thin; }
 .nav-caption { padding: 0 12px 8px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: 1.1px; }
 .main-nav button { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 12px; border-radius: 9px; background: transparent; color: var(--muted); text-align: left; font-size: 13px; font-weight: 520; transition: .18s ease; }
 .main-nav button:hover { background: var(--surface-hover); color: var(--text); }

@@ -93,7 +93,8 @@ export default function AgendaView({ workspace, initialPatientId, initialOfficeI
     const [year, month, day] = value.date.split('-').map(Number)
     const date = new Date(year, month - 1, day, 12)
     const [startH, startM] = value.start.split(':').map(Number); const [endH, endM] = value.end.split(':').map(Number)
-    return { id: value.id ?? '', patientId: value.patientId || null, officeId: value.officeId || undefined, startsAt: localIso(date, startH * 60 + startM), endsAt: localIso(date, endH * 60 + endM), visitType: value.visitType, notes: value.notes }
+    const existing = workspace.appointments.find(item => item.id === value.id)
+    return { ...existing, id: value.id ?? '', patientId: value.patientId || null, officeId: value.officeId || undefined, startsAt: localIso(date, startH * 60 + startM), endsAt: localIso(date, endH * 60 + endM), visitType: value.visitType, notes: value.notes }
   }
   function overlaps(item: Appointment) {
     return workspace.appointments.some(other => other.id !== item.id && new Date(other.startsAt).getTime() < new Date(item.endsAt).getTime() && new Date(other.endsAt).getTime() > new Date(item.startsAt).getTime())

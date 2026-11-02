@@ -88,9 +88,10 @@ export function useWorkspace(session: Session | null) {
   const [billingSettings, setBillingSettings] = useStored<BillingSettings>('vatia-v3-billing-settings', EMPTY_BILLING_SETTINGS, cloud)
   const foods: Food[] = [...customFoods, ...(baseFoods as Food[]).filter(base => !customFoods.some(food => food.id === base.id))]
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (background = false) => {
     if (!supabase || !session) { setLoading(false); return }
-    setLoading(true); setError(''); setBillingWarning(''); setOfficeWarning('')
+    if (!background) setLoading(true)
+    setError(''); setBillingWarning(''); setOfficeWarning('')
     try {
       const [patientResult, foodResult, dietResult, diaryResult, measurementResult, noteResult, appointmentResult] = await Promise.all([
         supabase.from('patients').select('*').order('created_at'),
@@ -116,7 +117,15 @@ export function useWorkspace(session: Session | null) {
         bodyFat: row.body_fat == null ? undefined : Number(row.body_fat), note: row.note ?? '',
       })))
       setNotes((noteResult.data ?? []).map(row => ({ id: row.id, patientId: row.patient_id, text: row.text, kind: row.kind === 'Attività' ? 'Attività' : 'Nota', dueDate: row.due_date ?? undefined, done: row.done, createdAt: row.created_at })))
-      setAppointments((appointmentResult.data ?? []).map(row => ({ id: row.id, patientId: row.patient_id, officeId: row.office_id ? String(row.office_id) : undefined, googleEventId: row.google_event_id ? String(row.google_event_id) : undefined, startsAt: row.starts_at, endsAt: row.ends_at, visitType: row.visit_type, notes: row.notes ?? '' })))
+      setAppointments((appointmentResult.data ?? []).map(row => ({
+        id: row.id, patientId: row.patient_id, officeId: row.office_id ? String(row.office_id) : undefined,
+        googleEventId: row.google_event_id ? String(row.google_event_id) : undefined,
+        googleUpdatedAt: row.google_updated_at ? String(row.google_updated_at) : undefined,
+        lastSyncedAt: row.last_synced_at ? String(row.last_synced_at) : undefined,
+        googleIncludeNotes: Boolean(row.google_include_notes), googleIncludeLocation: row.google_include_location !== false,
+        startsAt: row.starts_at, endsAt: row.ends_at, visitType: row.visit_type, notes: row.notes ?? '',
+        createdAt: row.created_at ? String(row.created_at) : undefined, updatedAt: row.updated_at ? String(row.updated_at) : undefined,
+      })))
       try {
         const [serviceResult, invoiceResult, settingsResult] = await Promise.all([
           supabase.from('services').select('*').order('name'),
@@ -314,21 +323,35 @@ export function useWorkspace(session: Session | null) {
   }
 
   async function addAppointment(input: Omit<Appointment, 'id'>) {
+    const now = new Date().toISOString()
     return run(async () => {
-      const { data, error } = await supabase!.from('appointments').insert({ patient_id: input.patientId || null, office_id: input.officeId || null, google_event_id: input.googleEventId || null, starts_at: input.startsAt, ends_at: input.endsAt, visit_type: input.visitType, notes: input.notes || null }).select().single()
+      const { data, error } = await supabase!.from('appointments').insert({
+        patient_id: input.patientId || null, office_id: input.officeId || null, google_event_id: input.googleEventId || null,
+        google_updated_at: input.googleUpdatedAt || null, last_synced_at: input.lastSyncedAt || null,
+        google_include_notes: input.googleIncludeNotes ?? false, google_include_location: input.googleIncludeLocation ?? true,
+        starts_at: input.startsAt, ends_at: input.endsAt, visit_type: input.visitType, notes: input.notes || null,
+        updated_at: input.updatedAt || now,
+      }).select().single()
       if (error) throw error
-      const appointment = { ...input, id: data.id }
+      const appointment: Appointment = { ...input, id: data.id, googleEventId: data.google_event_id ? String(data.google_event_id) : undefined, createdAt: data.created_at, updatedAt: data.updated_at }
       setAppointments(current => [...current, appointment].sort((a, b) => a.startsAt.localeCompare(b.startsAt))); return appointment
-    }, () => { const appointment = { ...input, id: uid() }; setAppointments(current => [...current, appointment]); return appointment })
+    }, () => { const appointment: Appointment = { ...input, id: uid(), createdAt: now, updatedAt: now }; setAppointments(current => [...current, appointment]); return appointment })
   }
 
   async function updateAppointment(appointment: Appointment) {
+    const updated = { ...appointment, updatedAt: new Date().toISOString() }
     return run(async () => {
-      const { error } = await supabase!.from('appointments').update({ patient_id: appointment.patientId || null, office_id: appointment.officeId || null, google_event_id: appointment.googleEventId || null, starts_at: appointment.startsAt, ends_at: appointment.endsAt, visit_type: appointment.visitType, notes: appointment.notes || null }).eq('id', appointment.id)
+      const { error } = await supabase!.from('appointments').update({
+        patient_id: updated.patientId || null, office_id: updated.officeId || null, google_event_id: updated.googleEventId || null,
+        google_updated_at: updated.googleUpdatedAt || null, last_synced_at: updated.lastSyncedAt || null,
+        google_include_notes: updated.googleIncludeNotes ?? false, google_include_location: updated.googleIncludeLocation ?? true,
+        starts_at: updated.startsAt, ends_at: updated.endsAt, visit_type: updated.visitType, notes: updated.notes || null,
+        updated_at: updated.updatedAt,
+      }).eq('id', updated.id)
       if (error) throw error
-      setAppointments(current => current.map(item => item.id === appointment.id ? appointment : item).sort((a, b) => a.startsAt.localeCompare(b.startsAt)))
-      return appointment
-    }, () => { setAppointments(current => current.map(item => item.id === appointment.id ? appointment : item).sort((a, b) => a.startsAt.localeCompare(b.startsAt))); return appointment })
+      setAppointments(current => current.map(item => item.id === updated.id ? updated : item).sort((a, b) => a.startsAt.localeCompare(b.startsAt)))
+      return updated
+    }, () => { setAppointments(current => current.map(item => item.id === updated.id ? updated : item).sort((a, b) => a.startsAt.localeCompare(b.startsAt))); return updated })
   }
 
   async function deleteAppointment(id: string) {

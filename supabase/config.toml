@@ -1,0 +1,5 @@
+[functions.google-calendar]
+# La funzione verifica internamente il JWT Supabase per le azioni utente e
+# CRON_SECRET per sync_all. Questo consente al job pg_net di non usare la
+# service-role key come credenziale di schedulazione.
+verify_jwt = false

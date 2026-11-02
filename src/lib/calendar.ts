@@ -1,4 +1,5 @@
 import type { Appointment } from '../types'
+import { supabase } from './supabase'
 
 export type CalendarEventInput = {
   appointment: Appointment
@@ -8,10 +9,16 @@ export type CalendarEventInput = {
 }
 
 type GoogleToken = { access_token: string; expires_in?: number }
+type GoogleCode = { code?: string; error?: string; error_description?: string }
 type GoogleTokenClient = {
   callback: (response: GoogleToken & { error?: string; error_description?: string }) => void
   error_callback: (error: { type?: string }) => void
   requestAccessToken: (options?: { prompt?: string }) => void
+}
+type GoogleCodeClient = {
+  callback: (response: GoogleCode) => void
+  error_callback: (error: { type?: string }) => void
+  requestCode: () => void
 }
 type GoogleAccounts = {
   accounts: {
@@ -22,6 +29,16 @@ type GoogleAccounts = {
         callback: GoogleTokenClient['callback']
         error_callback: GoogleTokenClient['error_callback']
       }) => GoogleTokenClient
+      initCodeClient: (config: {
+        client_id: string
+        scope: string
+        ux_mode: 'popup'
+        access_type: 'offline'
+        prompt: 'consent'
+        select_account: boolean
+        callback: GoogleCodeClient['callback']
+        error_callback: GoogleCodeClient['error_callback']
+      }) => GoogleCodeClient
     }
   }
 }
@@ -32,11 +49,13 @@ declare global {
 
 const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/calendar.events'
 const GOOGLE_API = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
+// Il Client ID OAuth è pubblico per design; secret e token restano sul backend.
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() || '372088612285-ltul1psc8p4829djbggi4ii651dtcmo0.apps.googleusercontent.com'
 let gisPromise: Promise<void> | null = null
 let accessToken = ''
 let tokenExpiresAt = 0
 
-export const googleCalendarConfigured = () => Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim())
+export const googleCalendarConfigured = () => Boolean(GOOGLE_CLIENT_ID)
 
 function eventSummary({ appointment, patientName }: CalendarEventInput) {
   return `${appointment.visitType}${patientName ? ` · ${patientName}` : ''}`
@@ -125,7 +144,7 @@ function loadGoogleIdentity() {
 
 async function googleAccessToken() {
   if (accessToken && Date.now() < tokenExpiresAt - 60000) return accessToken
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim()
+  const clientId = GOOGLE_CLIENT_ID
   if (!clientId) throw new Error('Configura VITE_GOOGLE_CLIENT_ID per abilitare la sincronizzazione Google Calendar.')
   await loadGoogleIdentity()
   if (!window.google) throw new Error('Google Identity Services non è disponibile.')
@@ -137,7 +156,7 @@ async function googleAccessToken() {
         if (response.error || !response.access_token) reject(new Error(response.error_description || 'Autorizzazione Google non completata.'))
         else resolve(response)
       },
-      error_callback: error => reject(new Error(error.type === 'popup_closed' ? 'Finestra Google chiusa prima del completamento.' : 'Accesso a Google Calendar non autorizzato.')),
+      error_callback: error => reject(new Error(error.type === 'popup_closed' ? 'Finestra Google chiusa prima del completamento.' : error.type === 'popup_failed_to_open' ? 'Il browser ha bloccato la finestra Google. Consenti i popup per Vatia e riprova.' : 'Accesso a Google Calendar non autorizzato.')),
     })
     client.requestAccessToken({ prompt: accessToken ? '' : 'consent' })
   })
@@ -150,13 +169,95 @@ export type GoogleCalendarEvent = {
   id: string
   summary?: string
   status?: string
+  updated?: string
+  location?: string
   start?: { dateTime?: string; date?: string; timeZone?: string }
   end?: { dateTime?: string; date?: string; timeZone?: string }
   extendedProperties?: { private?: Record<string, string> }
 }
 
+export type GoogleAccountStatus = {
+  connected: boolean
+  googleEmail?: string
+  lastSyncAt?: string | null
+}
+
+export type GoogleSyncResult = {
+  imported: number
+  updated: number
+  deleted: number
+  pushed: number
+  changes: number
+  errors: number
+  lastSyncAt: string
+  googleEmail: string
+}
+
 type GoogleCalendarList = { items?: GoogleCalendarEvent[] }
 type GoogleEventSearch = { items?: { id: string }[] }
+
+async function vatiaSession() {
+  if (!supabase) return null
+  const { data } = await supabase.auth.getSession()
+  return data.session
+}
+
+async function callGoogleFunction<T>(body: Record<string, unknown>): Promise<T> {
+  const session = await vatiaSession()
+  if (!session) throw new Error('Accedi al tuo account Vatia per usare il collegamento permanente.')
+  const url = import.meta.env.VITE_SUPABASE_URL?.trim()
+  const apikey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim()
+  if (!url || !apikey) throw new Error('Configurazione Supabase non disponibile.')
+  const response = await fetch(`${url}/functions/v1/google-calendar`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${session.access_token}`, apikey, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const result = await response.json().catch(() => ({})) as { error?: string }
+  if (!response.ok) throw new Error(result.error || `Il servizio Google Calendar ha risposto con errore ${response.status}.`)
+  return result as T
+}
+
+export function googleAccountStatus() {
+  return callGoogleFunction<GoogleAccountStatus>({ action: 'status' })
+}
+
+async function requestGoogleAuthorizationCode() {
+  const clientId = GOOGLE_CLIENT_ID
+  if (!clientId) throw new Error('Configura VITE_GOOGLE_CLIENT_ID per collegare Google Calendar.')
+  await loadGoogleIdentity()
+  if (!window.google) throw new Error('Google Identity Services non è disponibile.')
+  const code = await new Promise<string>((resolve, reject) => {
+    const client = window.google!.accounts.oauth2.initCodeClient({
+      client_id: clientId,
+      scope: `openid email ${GOOGLE_SCOPE}`,
+      ux_mode: 'popup',
+      access_type: 'offline',
+      prompt: 'consent',
+      select_account: true,
+      callback: response => {
+        if (response.error || !response.code) reject(new Error(response.error_description || 'Autorizzazione Google non completata.'))
+        else resolve(response.code)
+      },
+      error_callback: error => reject(new Error(error.type === 'popup_closed' ? 'Finestra Google chiusa prima del completamento.' : error.type === 'popup_failed_to_open' ? 'Il browser ha bloccato la finestra Google. Consenti i popup per Vatia e riprova.' : 'Accesso a Google Calendar non autorizzato.')),
+    })
+    client.requestCode()
+  })
+  return code
+}
+
+export async function connectGoogleAccount() {
+  const code = await requestGoogleAuthorizationCode()
+  return callGoogleFunction<GoogleAccountStatus>({ action: 'connect', code })
+}
+
+export function disconnectGoogleAccount() {
+  return callGoogleFunction<GoogleAccountStatus>({ action: 'disconnect' })
+}
+
+export function syncGoogleAccount() {
+  return callGoogleFunction<GoogleSyncResult>({ action: 'sync' })
+}
 
 async function calendarFetch<T>(url: string, init: RequestInit = {}): Promise<T | null> {
   const token = await googleAccessToken()
@@ -177,9 +278,13 @@ export async function listGoogleCalendarEvents(timeMin: string, timeMax: string)
   const start = validDate(timeMin)
   const end = validDate(timeMax)
   if (end <= start) throw new Error('L’intervallo di importazione non è valido.')
+  if (await vatiaSession()) {
+    const result = await callGoogleFunction<GoogleCalendarList>({ action: 'list', timeMin: start.toISOString(), timeMax: end.toISOString() })
+    return (result.items ?? []).filter(event => event.id && event.status !== 'cancelled')
+  }
   const query = new URLSearchParams({
     timeMin: start.toISOString(), timeMax: end.toISOString(), singleEvents: 'true', orderBy: 'startTime',
-    showDeleted: 'false', maxResults: '250', fields: 'items(id,summary,status,start,end,extendedProperties)',
+    showDeleted: 'false', maxResults: '250', fields: 'items(id,summary,status,start,end,location,updated,extendedProperties)',
   })
   const result = await calendarFetch<GoogleCalendarList>(`${GOOGLE_API}?${query}`)
   return (result?.items ?? []).filter(event => event.id && event.status !== 'cancelled')
@@ -190,6 +295,12 @@ export async function syncAppointmentToGoogle(input: CalendarEventInput): Promis
   if (!appointment.id) throw new Error('Salva prima l’appuntamento, poi sincronizzalo con Google Calendar.')
   validDate(appointment.startsAt)
   validDate(appointment.endsAt)
+  if (await vatiaSession()) {
+    const result = await callGoogleFunction<{ result: 'created' | 'updated' }>({
+      action: 'push', appointmentId: appointment.id, includeNotes: Boolean(input.includeNotes), includeLocation: Boolean(input.location),
+    })
+    return result.result
+  }
   let eventId = appointment.googleEventId
   if (!eventId) {
     const query = new URLSearchParams({ privateExtendedProperty: `vatiaAppointmentId=${appointment.id}`, maxResults: '1' })

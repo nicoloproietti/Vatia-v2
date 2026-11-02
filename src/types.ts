@@ -200,10 +200,16 @@ export type Appointment = {
   patientId: string | null
   officeId?: string
   googleEventId?: string
+  googleUpdatedAt?: string
+  lastSyncedAt?: string
+  googleIncludeNotes?: boolean
+  googleIncludeLocation?: boolean
   startsAt: string
   endsAt: string
   visitType: string
   notes: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export const EMPTY_ANAMNESIS: Anamnesis = {

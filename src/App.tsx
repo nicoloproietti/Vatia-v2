@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { AlertCircle, ArrowRight, BarChart3, BookOpen, Building2, CalendarDays, Check, ChevronDown, ClipboardCheck, Copy, Database, LayoutDashboard, Leaf, LogOut, Menu, Moon, Plus, ReceiptText, Sun, Trash2, Users, Utensils, X, type LucideIcon } from 'lucide-react'
 import { supabase } from './lib/supabase'
@@ -17,6 +17,7 @@ import AgendaView from './components/AgendaView'
 import BillingView from './components/BillingView'
 import OfficesView from './components/OfficesView'
 import VatiaBuddy from './components/VatiaBuddy'
+import GoogleAccountConnection from './components/GoogleAccountConnection'
 import { EmptyState, PatientSelect } from './components/UI'
 import './App.css'
 import './clinical.css'
@@ -65,7 +66,7 @@ export default function App() {
     if (activePlan && builderDirty && !window.confirm('Lasciare il builder? Le modifiche non salvate andranno perse.')) return
     setActivePlan(null); setBuilderDirty(false); setPage(next); setMobileNav(false)
   }
-  function notify(message: string) { setToast(message) }
+  const notify = useCallback((message: string) => { setToast(message) }, [])
   function toggleTheme() { const next = !dark; setDark(next); localStorage.setItem('vatia-v2-dark', String(next)) }
   function enterGuest() { localStorage.setItem('vatia-v2-guest', 'true'); setGuest(true) }
   function exitGuest() { localStorage.removeItem('vatia-v2-guest'); setGuest(false); setPage('oggi'); setActivePlan(null); setBuilderDirty(false); setSelectedPatientId('') }
@@ -107,7 +108,7 @@ export default function App() {
       <div className="brand"><VatiaBuddy size={40} className="brand-buddy" /><span>vatia</span><small>PRO</small></div>
       <div className="workspace"><div className="workspace-icon">NP</div><div><strong>{workspace.billingSettings.studioName || 'Studio Nutrizionale'}</strong><span>Area professionale</span></div><ChevronDown size={15} /></div>
       <nav className="main-nav" aria-label="Navigazione principale">{['STUDIO', 'NUTRIZIONE'].map(group => <div className="nav-group" key={group}><span className="nav-caption">{group}</span>{NAV.filter(item => item.group === group).map(item => <button key={item.id} className={page === item.id ? 'active' : ''} onClick={() => navigate(item.id)}><item.icon size={18} /><span>{item.label}</span>{item.id === 'pazienti' && <b>{workspace.patients.length}</b>}{item.id === 'diete' && <b>{workspace.plans.length}</b>}{item.id === 'fatture' && workspace.invoices.some(invoice => invoice.status === 'Emessa') && <b>{workspace.invoices.filter(invoice => invoice.status === 'Emessa').length}</b>}</button>)}</div>)}</nav>
-      <div className="sidebar-bottom"><div className={`sync-card ${session ? 'connected' : ''}`}><div><span className="status-dot" />{session ? 'Spazio cloud protetto' : 'Area locale attiva'}</div><p>{session ? 'Dati separati per account nel progetto Vatia dedicato.' : 'I dati restano in questo browser. Accedi con un account per sincronizzarli.'}</p></div><button className="profile-button" title={session ? 'Esci da Vatia' : guest ? 'Esci dall’area ospite' : 'Profilo locale'} onClick={() => { if (session) void supabase?.auth.signOut(); else if (guest) exitGuest() }}><div className="avatar">{userName.slice(0, 2).toUpperCase()}</div><div><strong>{session?.user.email ?? (guest ? 'Ospite' : 'Area locale')}</strong><span>{session ? 'Esci dall’account' : guest ? 'Torna all’accesso' : 'Nutrizionista'}</span></div>{session || guest ? <LogOut size={18} /> : null}</button></div>
+      <div className="sidebar-bottom"><GoogleAccountConnection session={session} appointments={workspace.appointments} reload={workspace.reload} notify={notify} /><div className={`sync-card ${session ? 'connected' : ''}`}><div><span className="status-dot" />{session ? 'Spazio cloud protetto' : 'Area locale attiva'}</div><p>{session ? 'Dati separati per account nel progetto Vatia dedicato.' : 'I dati restano in questo browser. Accedi con un account per sincronizzarli.'}</p></div><button className="profile-button" title={session ? 'Esci da Vatia' : guest ? 'Esci dall’area ospite' : 'Profilo locale'} onClick={() => { if (session) void supabase?.auth.signOut(); else if (guest) exitGuest() }}><div className="avatar">{userName.slice(0, 2).toUpperCase()}</div><div><strong>{session?.user.email ?? (guest ? 'Ospite' : 'Area locale')}</strong><span>{session ? 'Esci dall’account' : guest ? 'Torna all’accesso' : 'Nutrizionista'}</span></div>{session || guest ? <LogOut size={18} /> : null}</button></div>
     </aside>
     <main className="main-area">
       <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMobileNav(true)} aria-label="Apri navigazione"><Menu size={21} /></button><div className="breadcrumb"><span>Vatia</span><i>/</i><strong>{pageTitle}</strong></div><div className="topbar-actions">{showPatientContext && <PatientSelect patients={workspace.patients} value={effectivePatientId} onChange={setSelectedPatientId} label="Paziente attivo" />}<button className="icon-button" onClick={toggleTheme} aria-label="Cambia tema">{dark ? <Sun size={19} /> : <Moon size={19} />}</button><button className="button primary compact" onClick={() => setNewPatientOpen(true)}><Plus size={17} />Nuovo paziente</button></div></header>
