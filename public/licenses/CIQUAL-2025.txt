@@ -1,0 +1,28 @@
+CIQUAL 2025 — DATASET NOTICE
+
+Dataset: Table de composition nutritionnelle des aliments Ciqual 2025
+Producer: Agence nationale de sécurité sanitaire de l'alimentation, de l'environnement et du travail (Anses)
+Release: 2025-11-03; published 2025-11-19
+Dataset DOI: https://doi.org/10.57745/RDMHWY
+Official XLSX: https://entrepot.recherche.data.gouv.fr/api/access/datafile/666260?format=original
+XLSX MD5 (published by the repository): 0d9758ce23f3f13dd63a005bc1bb4f2c
+XLSX SHA-256 (computed for this pipeline): 5555c572fa3735991298d832d0427788fa69a11b4fd20a5d580d58942369fbb0
+
+Licence: Licence Ouverte / Open Licence, version 2.0 (Etalab 2.0)
+Licence URL: https://spdx.org/licenses/etalab-2.0.html
+
+Required attribution:
+Anses. 2025. Table de composition nutritionnelle des aliments Ciqual 2025. https://doi.org/10.57745/RDMHWY
+
+The source permits reproduction provided that the source and version are stated,
+that the information is not altered in meaning and that reuse does not mislead
+third parties about its content, source or update date.
+
+This repository contains a curated derivative selection: only generic single
+foods/ingredients explicitly listed by CIQUAL code, with manually curated Italian
+names. Nutrient values are copied per 100 g without recalculation. Composite dishes,
+branded products and unreviewed automatic translations are excluded. Null values,
+traces and bounded values are not converted to zero.
+
+This notice is not a substitute for the full Etalab 2.0 licence text available at
+the official licence URL above.

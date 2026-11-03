@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-import { foods as baseFoods } from '../data/foods'
+import { foods as legacyFoods } from '../data/foods'
+import { ciqualFoods, hasCompleteNutrients } from '../data/catalog'
 import { createEmptyDiet, dateKey, macroGrams, normalizeDietData, uid } from '../lib/clinical'
 import { optimizeItems, quickMealItems } from '../lib/dietEngine'
 import { EMPTY_ANAMNESIS, EMPTY_BILLING_SETTINGS } from '../types'
@@ -30,12 +31,22 @@ const patientFromRow = (row: Record<string, unknown>): Patient => ({
   createdAt: String(row.created_at ?? new Date().toISOString()), updatedAt: String(row.updated_at ?? new Date().toISOString()),
 })
 
+const legacyCatalog = (legacyFoods as Food[]).map(food => ({ ...food, isLegacy: true }))
+const legacyIds = new Set(legacyCatalog.map(food => food.id))
+
 const foodFromRow = (row: Record<string, unknown>): Food => {
-  const base = baseFoods.find(food => food.id === row.id)
+  const base = [...ciqualFoods, ...legacyCatalog].find(food => food.id === row.id)
   return {
     id: String(row.id), name: String(row.name), brand: String(row.brand ?? ''), barcode: String(row.barcode ?? ''),
     category: String(row.category ?? 'altro'), note: String(row.note ?? ''), source: String(row.source ?? ''),
-    meals: (row.meals ?? base?.meals ?? 'all') as Food['meals'], per100g: row.per100g as Food['per100g'], isPublic: Boolean(row.is_public),
+    sourceFoodId: row.source_food_id ? String(row.source_food_id) : base?.sourceFoodId,
+    sourceRelease: row.source_release ? String(row.source_release) : base?.sourceRelease,
+    licence: row.licence ? String(row.licence) : base?.licence,
+    edibleBasis: row.edible_basis ? String(row.edible_basis) : base?.edibleBasis,
+    processingState: row.processing_state ? String(row.processing_state) : base?.processingState,
+    originalName: row.original_name ? String(row.original_name) : base?.originalName,
+    meals: (row.meals ?? base?.meals ?? 'all') as Food['meals'], per100g: row.per100g as Food['per100g'],
+    isPublic: Boolean(row.is_public), isLegacy: legacyIds.has(String(row.id)),
   }
 }
 
@@ -86,7 +97,11 @@ export function useWorkspace(session: Session | null) {
   const [services, setServices] = useStored<Service[]>('vatia-v3-services', [], cloud)
   const [invoices, setInvoices] = useStored<Invoice[]>('vatia-v3-invoices', [], cloud)
   const [billingSettings, setBillingSettings] = useStored<BillingSettings>('vatia-v3-billing-settings', EMPTY_BILLING_SETTINGS, cloud)
-  const foods: Food[] = [...customFoods, ...(baseFoods as Food[]).filter(base => !customFoods.some(food => food.id === base.id))]
+  const foods: Food[] = [
+    ...customFoods,
+    ...ciqualFoods.filter(base => !customFoods.some(food => food.id === base.id)),
+    ...legacyCatalog.filter(base => !customFoods.some(food => food.id === base.id)),
+  ]
 
   const load = useCallback(async (background = false) => {
     if (!supabase || !session) { setLoading(false); return }
@@ -105,7 +120,7 @@ export function useWorkspace(session: Session | null) {
       const failure = [patientResult, foodResult, dietResult, diaryResult, measurementResult, noteResult, appointmentResult].find(result => result.error)
       if (failure?.error) throw failure.error
       setPatients((patientResult.data ?? []).map(row => patientFromRow(row)))
-      setCustomFoods((foodResult.data ?? []).map(row => foodFromRow(row)))
+      setCustomFoods((foodResult.data ?? []).map(row => foodFromRow(row)).filter(food => food.isPublic === false || hasCompleteNutrients(food)))
       setPlans((dietResult.data ?? []).map(row => planFromRow(row)))
       setDiary((diaryResult.data ?? []).map(row => ({
         id: row.id, patientId: row.patient_id, date: row.entry_date, foodId: row.food_id, grams: Number(row.grams), meal: row.meal,
@@ -287,7 +302,27 @@ export function useWorkspace(session: Session | null) {
       if (error) throw error
       const food = foodFromRow(data)
       setCustomFoods(current => [food, ...current]); return food
-    }, () => { const food = { ...input, id: `custom-${uid()}` }; setCustomFoods(current => [food, ...current]); return food })
+    }, () => { const food = { ...input, id: `custom-${uid()}`, isPublic: false }; setCustomFoods(current => [food, ...current]); return food })
+  }
+
+  async function updateFood(input: Food) {
+    if (input.isPublic || input.isLegacy) throw new Error('Puoi modificare soltanto i tuoi alimenti personali.')
+    return run(async () => {
+      const { data, error } = await supabase!.from('foods').update({ name: input.name, brand: input.brand || null, barcode: input.barcode || null, category: input.category, note: input.note || null, source: input.source || 'Alimento personale', meals: input.meals || 'all', per100g: input.per100g }).eq('id', input.id).select().single()
+      if (error) throw error
+      const food = foodFromRow(data)
+      setCustomFoods(current => current.map(item => item.id === food.id ? food : item)); return food
+    }, () => { const food = { ...input, isPublic: false }; setCustomFoods(current => current.map(item => item.id === food.id ? food : item)); return food })
+  }
+
+  async function deleteFood(id: string) {
+    const target = customFoods.find(food => food.id === id)
+    if (!target || target.isPublic || target.isLegacy) throw new Error('Puoi eliminare soltanto i tuoi alimenti personali.')
+    return run(async () => {
+      const { error } = await supabase!.from('foods').delete().eq('id', id)
+      if (error) throw error
+      setCustomFoods(current => current.filter(food => food.id !== id))
+    }, () => setCustomFoods(current => current.filter(food => food.id !== id)))
   }
 
   async function importFoods(imported: Food[]) {
@@ -448,7 +483,7 @@ export function useWorkspace(session: Session | null) {
       notes: 'Dati dimostrativi, modificabili ed eliminabili dalla dashboard.', createdAt: timestamp, updatedAt: timestamp,
     }
     const data = createEmptyDiet(1800)
-    const availableFoods = baseFoods as Food[]
+    const availableFoods = ciqualFoods
     const template = data.days[0].map((meal, index) => {
       const kcal = Math.round(1800 * data.kcalPct[index] / 100)
       const target = { kcal, ...macroGrams(kcal, data.macroPercent) }
@@ -508,7 +543,7 @@ export function useWorkspace(session: Session | null) {
     loading, error, setError, billingWarning, officeWarning, patients, foods, customFoods, plans, diary, measurements, notes, appointments, offices,
     services, invoices, billingSettings,
     createPatient, updatePatient, addMeasurement, addNote, toggleNote, saveDiet, deleteDiet, addDiaryEntry, addDiaryEntries,
-    removeDiaryEntry, addFood, importFoods, addAppointment, updateAppointment, deleteAppointment, saveOffice, deleteOffice,
+    removeDiaryEntry, addFood, updateFood, deleteFood, importFoods, addAppointment, updateAppointment, deleteAppointment, saveOffice, deleteOffice,
     saveService, deleteService, saveInvoice, deleteInvoice, saveBillingSettings, loadDemo, clearDemo, reload: load,
     emptyDiet: createEmptyDiet,
   }

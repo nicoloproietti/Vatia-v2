@@ -90,7 +90,15 @@ export type Food = {
   brand?: string
   barcode?: string
   source?: string
+  sourceFoodId?: string
+  sourceRelease?: string
+  licence?: string
+  edibleBasis?: string
+  processingState?: string
+  originalName?: string
   isPublic?: boolean
+  /** Voce storica usata solo per risolvere piani e diari già salvati. */
+  isLegacy?: boolean
 }
 
 export type Anamnesis = {

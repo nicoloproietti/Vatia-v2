@@ -23,6 +23,7 @@ import './App.css'
 import './clinical.css'
 import './product.css'
 import './integrations.css'
+import './ai-food.css'
 
 const NAV: { id: Page; label: string; icon: LucideIcon; group: string }[] = [
   { id: 'oggi', label: 'Oggi', icon: LayoutDashboard, group: 'STUDIO' },

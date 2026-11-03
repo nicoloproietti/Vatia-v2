@@ -1,0 +1,59 @@
+/* Catalogo, scanner alimenti e revisione locale */
+.catalog-source-card { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: -8px 0 20px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border)); border-radius: 11px; background: var(--primary-soft); }
+.catalog-source-card strong { font-size: 11px; }
+.catalog-source-card p { margin: 5px 0 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.catalog-source-card a { flex: 0 0 auto; color: var(--primary); font-size: 10px; font-weight: 650; text-decoration: none; }
+.catalog-source-card a:hover { text-decoration: underline; }
+.load-more { display: flex; margin: 16px auto 0; }
+.scanner-privacy { display: flex; align-items: flex-start; gap: 10px; padding: 12px 13px; border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border)); border-radius: 10px; background: var(--primary-soft); }
+.scanner-privacy > svg { flex: 0 0 auto; color: var(--primary); }
+.scanner-privacy p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.scanner-privacy strong { color: var(--text); }
+.scanner-tabs { margin: 16px 0 20px; }
+.scanner-layout { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 20px; align-items: start; }
+.scanner-layout > div { min-width: 0; }
+.scanner-image-picker { position: relative; margin-bottom: 11px; }
+.scanner-image-picker > img, .scanner-image-empty { width: 100%; height: 265px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface-soft); }
+.scanner-image-picker > img { display: block; object-fit: contain; }
+.scanner-image-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 25px; color: var(--muted); text-align: center; }
+.scanner-image-empty strong { color: var(--text); font-size: 12px; }
+.scanner-image-empty span { max-width: 230px; font-size: 10px; line-height: 1.5; }
+.scanner-image-picker > label { width: 100%; margin-top: 9px; }
+.scanner-image-picker > input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.scanner-results { display: grid; gap: 10px; }
+.scanner-results > .voice-feedback { margin: 0; }
+.scan-basis { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; border-radius: 9px; background: var(--surface-soft); font-size: 10px; }
+.scan-basis span { color: var(--muted); }
+.scan-nutrients { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.scan-nutrients > div { padding: 10px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.scan-nutrients span, .scan-nutrients strong { display: block; }
+.scan-nutrients span { color: var(--muted); font-size: 9px; }
+.scan-nutrients strong { margin-top: 5px; font-size: 11px; }
+.scan-warning { margin: 0; padding: 9px 11px; border-radius: 8px; background: #fff7e6; color: #916718; font-size: 9px; line-height: 1.5; }
+.dark .scan-warning { background: #40351d; color: #e5ba65; }
+.ocr-details { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-soft); }
+.ocr-details summary { padding: 10px 11px; color: var(--muted); cursor: pointer; font-size: 9px; font-weight: 600; }
+.ocr-details pre { max-height: 180px; margin: 0; overflow: auto; padding: 0 11px 11px; color: var(--text); font-family: inherit; font-size: 9px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.scanner-no-estimates { padding: 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-soft); }
+.scanner-no-estimates strong, .scanner-no-estimates span { display: block; }
+.scanner-no-estimates strong { font-size: 10px; }
+.scanner-no-estimates span { margin-top: 5px; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.scanner-food-candidates { display: grid; gap: 6px; max-height: 330px; overflow-y: auto; }
+.scanner-food-candidates > button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 10px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); text-align: left; }
+.scanner-food-candidates > button:hover, .scanner-food-candidates > button.selected { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); background: var(--primary-soft); }
+.scanner-food-candidates > button > span { min-width: 0; }
+.scanner-food-candidates strong, .scanner-food-candidates small { display: block; }
+.scanner-food-candidates strong { font-size: 10px; line-height: 1.4; }
+.scanner-food-candidates small { margin-top: 4px; color: var(--muted); font-size: 8px; line-height: 1.4; }
+.scanner-food-candidates b { flex: 0 0 auto; color: var(--primary); font-size: 9px; white-space: nowrap; }
+.spin { animation: ai-food-spin 1s linear infinite; }
+@keyframes ai-food-spin { to { transform: rotate(360deg); } }
+@media (max-width: 760px) {
+  .scanner-layout { grid-template-columns: 1fr; }
+  .scanner-image-picker > img, .scanner-image-empty { height: 220px; }
+  .catalog-source-card { align-items: flex-start; flex-direction: column; gap: 9px; }
+}
+@media (max-width: 440px) {
+  .scan-nutrients { grid-template-columns: 1fr; }
+  .scanner-food-candidates > button { align-items: flex-start; flex-direction: column; gap: 6px; }
+}

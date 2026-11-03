@@ -37,14 +37,15 @@
 .voice-review-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .voice-review-heading h3 { margin: 5px 0 0; font-size: 14px; }
 .voice-field-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.voice-field-list > label { display: flex; flex-direction: row; align-items: flex-start; gap: 9px; min-width: 0; padding: 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-soft); cursor: pointer; }
-.voice-field-list > label.selected { border-color: color-mix(in srgb, var(--primary) 42%, var(--border)); background: var(--primary-soft); }
-.voice-field-list input { width: 14px; height: 14px; flex: 0 0 auto; margin: 2px 0 0; accent-color: var(--primary); }
+.voice-field-list > div { min-width: 0; padding: 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-soft); }
+.voice-field-list > div.selected { border-color: color-mix(in srgb, var(--primary) 42%, var(--border)); background: var(--primary-soft); }
+.voice-field-list > div > label { display: flex; flex-direction: row; align-items: flex-start; gap: 9px; cursor: pointer; }
+.voice-field-list label input[type="checkbox"] { width: 14px; height: 14px; flex: 0 0 auto; margin: 2px 0 0; accent-color: var(--primary); }
 .voice-field-list label > span { flex: 1; min-width: 0; }
-.voice-field-list strong, .voice-field-list b, .voice-field-list small { display: block; }
+.voice-field-list strong, .voice-field-list small { display: block; }
 .voice-field-list strong { color: var(--muted); font-size: 9px; font-weight: 600; }
-.voice-field-list b { margin-top: 5px; overflow-wrap: anywhere; color: var(--text); font-size: 10px; font-weight: 600; line-height: 1.45; }
 .voice-field-list small { margin-top: 5px; overflow-wrap: anywhere; color: var(--muted); font-size: 8px; line-height: 1.4; }
+.voice-field-list > div > input { width: 100%; min-height: 35px; margin-top: 8px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); font-size: 10px; }
 .voice-field-list label > svg { flex: 0 0 auto; color: var(--primary); }
 .voice-review-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
 .voice-review-footer > span { color: var(--muted); font-size: 9px; }

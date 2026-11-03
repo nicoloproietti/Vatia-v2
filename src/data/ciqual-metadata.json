@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "source": "ANSES-CIQUAL 2025",
+  "source_release": "2025-11-03",
+  "source_publication_date": "2025-11-19",
+  "dataset_doi": "https://doi.org/10.57745/RDMHWY",
+  "source_file": {
+    "filename": "Table Ciqual 2025_FR_2025_11_03.xlsx",
+    "url": "https://entrepot.recherche.data.gouv.fr/api/access/datafile/666260?format=original",
+    "file_doi": "https://doi.org/10.57745/RPWYZD",
+    "bytes": 1541998,
+    "md5": "0d9758ce23f3f13dd63a005bc1bb4f2c",
+    "sha256": "5555c572fa3735991298d832d0427788fa69a11b4fd20a5d580d58942369fbb0",
+    "checksum_verification": "required_on_every_run"
+  },
+  "licence": "Etalab 2.0",
+  "licence_url": "https://spdx.org/licenses/etalab-2.0.html",
+  "attribution": "Anses. 2025. Table de composition nutritionnelle des aliments Ciqual 2025. https://doi.org/10.57745/RDMHWY",
+  "licence_notice": "public/licenses/CIQUAL-2025.txt",
+  "nutrient_basis": "per_100g_edible_portion",
+  "nutrient_columns": {
+    "kcal": "Energie, Règlement UE N° 1169 2011 (kcal 100 g)",
+    "protein": "Protéines, N x 6.25 (g 100 g)",
+    "carbs": "Glucides (g 100 g)",
+    "fat": "Lipides (g 100 g)",
+    "fiber": "Fibres alimentaires (g 100 g)"
+  },
+  "nutrient_units": {
+    "kcal": "kcal/100 g",
+    "protein": "g/100 g",
+    "carbs": "g/100 g",
+    "fat": "g/100 g",
+    "fiber": "g/100 g"
+  },
+  "energy_convention": "EU_1169_2011_kcal_published_not_recalculated",
+  "protein_convention": "N_x_6.25_published",
+  "selection_policy": "explicit_ciqual_code_allowlist_generic_single_foods_only",
+  "translation_policy": "manual_curated_no_automatic_translation",
+  "counts": {
+    "source_food_count": 3484,
+    "selected_candidate_count": 674,
+    "accepted_count": 674,
+    "excluded_count": 2810,
+    "excluded_by_reason": {
+      "branded_product": 1,
+      "composite_or_prepared_dish": 505,
+      "not_in_curated_ingredient_allowlist": 2304
+    }
+  },
+  "category_counts": {
+    "affettati": 21,
+    "altro": 35,
+    "carne": 54,
+    "cereali": 105,
+    "formaggi": 40,
+    "frutta": 68,
+    "grassi": 59,
+    "latticini": 27,
+    "legumi": 35,
+    "pesce": 89,
+    "snack": 9,
+    "uova": 11,
+    "verdure": 121
+  },
+  "processing_state_counts": {
+    "canned": 16,
+    "cooked": 132,
+    "cured": 11,
+    "dried": 32,
+    "raw": 268,
+    "smoked": 4,
+    "unspecified": 211
+  },
+  "nutrient_missing_counts": {
+    "kcal": 19,
+    "protein": 4,
+    "carbs": 56,
+    "fat": 63,
+    "fiber": 25
+  },
+  "translations": {
+    "manual_curated": 674,
+    "review_required": 0
+  },
+  "null_policy": "missing_trace_and_bounded_values_are_null_never_zero; original_qualifiers_retained"
+}

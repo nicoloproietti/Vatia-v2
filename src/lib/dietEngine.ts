@@ -37,7 +37,7 @@ export function solveOptimalGrams(foods: Food[], kcalTarget: number, macroTarget
   if (!n || kcalTarget <= 0) return foods.map(food => isVerdura(food) ? VERDURE_GRAMS : 10)
   const MIN = 10
   const columns = nonVeg.map(food => [
-    (food.per100g.protein * 4 + food.per100g.carbs * 4 + food.per100g.fat * 9) / 100,
+    food.per100g.kcal / 100,
     food.per100g.protein / 100,
     food.per100g.carbs / 100,
     food.per100g.fat / 100,
@@ -101,17 +101,18 @@ function firstFood(foods: Food[], ids: string[], categories: string[], mealName:
 /** Composizione rapida: crea una base coerente con Vatia, poi lascia il controllo al professionista. */
 export function quickMealItems(mealName: string, foods: Food[]): PlanItem[] {
   const type = getMealType(mealName)
+  const available = foods.filter(food => !food.isLegacy)
   const selected = type === 'main'
     ? [
-        firstFood(foods, ['pasta_semola'], ['cereali'], mealName),
-        firstFood(foods, ['pollo_petto'], ['carne', 'pesce', 'uova', 'formaggi'], mealName),
-        firstFood(foods, ['olio_evo'], ['grassi'], mealName),
-        firstFood(foods, ['zucchine'], ['verdure'], mealName),
+        firstFood(available, ['ciqual-9810'], ['cereali'], mealName),
+        firstFood(available, ['ciqual-36017'], ['carne', 'pesce', 'uova', 'formaggi'], mealName),
+        firstFood(available, ['ciqual-17130'], ['grassi'], mealName),
+        firstFood(available, ['ciqual-20020'], ['verdure'], mealName),
       ]
     : [
-        firstFood(foods, ['avena_fiocchi', 'pane_integrale'], ['cereali'], mealName),
-        firstFood(foods, ['skyr', 'albume'], ['formaggi', 'latticini', 'uova'], mealName),
-        firstFood(foods, ['mandorle', 'burro_di_arachidi'], ['grassi'], mealName),
+        firstFood(available, ['ciqual-32140', 'ciqual-7110'], ['cereali'], mealName),
+        firstFood(available, ['ciqual-22001'], ['formaggi', 'latticini', 'uova'], mealName),
+        firstFood(available, ['ciqual-15000'], ['grassi'], mealName),
       ]
   return selected.filter((food): food is Food => Boolean(food)).map(food => ({ id: uid(), foodId: food.id, grams: isVerdura(food) ? 200 : 100 }))
 }

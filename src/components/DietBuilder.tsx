@@ -167,12 +167,12 @@ function FoodPicker({ foods, mealName, onAdd, onClose }: { foods: Food[]; mealNa
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
   const categories = [...new Set(foods.map(food => food.category))].sort()
-  const matches = foods.filter(food => isFoodSuitable(food, mealName) && food.name.toLowerCase().includes(search.toLowerCase()) && (category === 'all' || food.category === category)).slice(0, 40)
+  const matches = foods.filter(food => !food.isLegacy && isFoodSuitable(food, mealName) && food.name.toLowerCase().includes(search.toLowerCase()) && (category === 'all' || food.category === category)).slice(0, 40)
   return <Modal title={`Aggiungi a ${mealName}`} description="Cerca nel database e aggiungi: i grammi restano modificabili." onClose={onClose} wide><div className="picker-toolbar"><div className="search-field"><Search size={17} /><input autoFocus value={search} onChange={event => setSearch(event.target.value)} placeholder="Cerca alimento…" /></div><select aria-label="Filtra categoria" value={category} onChange={event => setCategory(event.target.value)}><option value="all">Tutte le categorie</option>{categories.map(item => <option key={item}>{item}</option>)}</select></div><div className="food-picker-list">{matches.map(food => <button key={food.id} onClick={() => onAdd(food)}><div className="food-icon"><Plus size={16} /></div><div><strong>{food.name}</strong><span>{food.note || food.category} · P {food.per100g.protein} · C {food.per100g.carbs} · G {food.per100g.fat}</span></div><b>{food.per100g.kcal} kcal<small>/ 100 g</small></b></button>)}{!matches.length && <EmptyState icon={<Search size={25} />} title="Nessun alimento" text="Prova un’altra ricerca o cambia categoria." />}</div></Modal>
 }
 
 function SubstitutionPicker({ foods, original, mealName, onSelect, onClose }: { foods: Food[]; original?: Food; mealName: string; onSelect: (food: Food) => void; onClose: () => void }) {
-  const alternatives = original ? foods.filter(food => food.id !== original.id && food.category === original.category && isFoodSuitable(food, mealName)) : []
+  const alternatives = original ? foods.filter(food => !food.isLegacy && food.id !== original.id && food.category === original.category && isFoodSuitable(food, mealName)) : []
   return <Modal title={`Alternativa a ${original?.name ?? 'alimento'}`} description="La quantità verrà ricalcolata a parità di calorie." onClose={onClose}><div className="food-picker-list">{alternatives.map(food => <button key={food.id} onClick={() => onSelect(food)}><div className="food-icon"><RefreshCw size={16} /></div><div><strong>{food.name}</strong><span>{food.note || food.category}</span></div><b>{food.per100g.kcal} kcal<small>/ 100 g</small></b></button>)}{!alternatives.length && <EmptyState icon={<RefreshCw size={25} />} title="Nessuna alternativa" text="Non ci sono altri alimenti compatibili nella stessa categoria." />}</div></Modal>
 }
 
