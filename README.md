@@ -29,7 +29,7 @@ Senza variabili d'ambiente l'interfaccia funziona in modalità demo locale e con
 
 ## Database alimenti
 
-La base tecnica supporta alimenti personalizzati e importazione JSON. Ogni alimento deve avere `id`, `name` e `per100g` con valori per 100 g. L'importazione del database Foodnoms viene completata solo dopo che l'app nativa ha reso disponibili i dati locali.
+La base tecnica supporta alimenti personalizzati e importazione JSON. Ogni alimento deve avere `id`, `name` e `per100g` con valori per 100 g. 
 
 ## GitHub Pages
 
