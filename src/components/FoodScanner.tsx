@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Camera, Check, FileImage, Image, LoaderCircle, ScanLine, Search, ShieldCheck, Sparkles } from 'lucide-react'
+import { Camera, Check, FileImage, Image, LoaderCircle, Plus, ScanLine, Search, ShieldCheck, Sparkles } from 'lucide-react'
 import type { Food } from '../types'
 import { inspectLocalFoodVision, matchFoodCandidates, readNutritionLabel, recognizeFoodPhoto, type LabelScan } from '../lib/foodScanner'
 import { EmptyState, Modal } from './UI'
@@ -8,15 +8,16 @@ type Props = {
   foods: Food[]
   onClose: () => void
   onLabelDraft: (draft: Partial<Food>) => void
+  onPhotoDraft: (draft: Partial<Food>) => void
   onIdentified: (food: Food) => void
 }
 
-export default function FoodScanner({ foods, onClose, onLabelDraft, onIdentified }: Props) {
+export default function FoodScanner({ foods, onClose, onLabelDraft, onPhotoDraft, onIdentified }: Props) {
   const [mode, setMode] = useState<'label' | 'photo'>('label')
   return <Modal title="Scansiona alimento" description="Etichetta e foto usano percorsi distinti: Vatia propone una bozza, tu confermi ogni dato." onClose={onClose} wide>
     <div className="scanner-privacy"><ShieldCheck size={18} /><p><strong>Elaborazione sul dispositivo</strong> · Le immagini non vengono inviate a servizi cloud. Le capacità AI dipendono dal browser; la verifica umana resta obbligatoria.</p></div>
     <div className="record-tabs scanner-tabs"><button className={mode === 'label' ? 'active' : ''} onClick={() => setMode('label')}><ScanLine size={15} />Etichetta nutrizionale</button><button className={mode === 'photo' ? 'active' : ''} onClick={() => setMode('photo')}><Camera size={15} />Foto dell’alimento</button></div>
-    {mode === 'label' ? <LabelScanner onDraft={onLabelDraft} /> : <PhotoScanner foods={foods} onIdentified={onIdentified} />}
+    {mode === 'label' ? <LabelScanner onDraft={onLabelDraft} /> : <PhotoScanner foods={foods} onPhotoDraft={onPhotoDraft} onIdentified={onIdentified} />}
   </Modal>
 }
 
@@ -82,7 +83,7 @@ function LabelScanner({ onDraft }: { onDraft: (draft: Partial<Food>) => void }) 
   </div>
 }
 
-function PhotoScanner({ foods, onIdentified }: { foods: Food[]; onIdentified: (food: Food) => void }) {
+function PhotoScanner({ foods, onPhotoDraft, onIdentified }: { foods: Food[]; onPhotoDraft: (draft: Partial<Food>) => void; onIdentified: (food: Food) => void }) {
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [capability, setCapability] = useState({ available: false, message: 'Verifica del modello visivo locale…' })
@@ -95,10 +96,22 @@ function PhotoScanner({ foods, onIdentified }: { foods: Food[]; onIdentified: (f
   const candidates = label ? matchFoodCandidates(label, foods) : []
   const manual = foods.filter(food => !food.isLegacy && food.name.toLowerCase().includes(search.toLowerCase())).slice(0, 8)
   const shown = search.trim() ? manual : candidates
+  const unmatchedName = (search.trim() || label).trim()
+  const baseQuery = /^(?:french fries|fries|patate fritte)$/i.test(label.trim()) ? 'patata' : null
+  const showingBase = Boolean(baseQuery && search.trim().toLowerCase() === baseQuery)
+
+  function createPersonal() {
+    if (!unmatchedName) return
+    onPhotoDraft({
+      name: unmatchedName, category: 'altro', meals: 'all', processingState: 'unspecified',
+      source: label && !search.trim() ? 'Foto · riconoscimento locale' : 'Alimento personale',
+      note: 'Voce assente dal catalogo CIQUAL. Inserisci valori da una fonte verificata: nessuna equivalenza con ingredienti crudi è stata applicata.',
+    })
+  }
 
   async function recognize() {
     if (!file) return
-    setBusy(true); setError(''); setLabel(''); setSelected(null)
+    setBusy(true); setError(''); setLabel(''); setSelected(null); setSearch('')
     try {
       const result = await recognizeFoodPhoto(file)
       setLabel(result.label ?? '')
@@ -109,14 +122,15 @@ function PhotoScanner({ foods, onIdentified }: { foods: Food[]; onIdentified: (f
     } finally { setBusy(false) }
   }
   return <div className="scanner-layout">
-    <div><ImagePicker id="food-photo" file={file} onChange={next => { setFile(next); setLabel(''); setSelected(null); setError('') }} /><button className="button primary full" disabled={!file || busy || !capability.available} onClick={() => void recognize()}>{busy ? <LoaderCircle className="spin" size={16} /> : <Sparkles size={16} />}{busy ? 'Analisi locale…' : 'Proponi l’alimento'}</button><p className="voice-hint">{capability.message}</p></div>
+    <div><ImagePicker id="food-photo" file={file} onChange={next => { setFile(next); setLabel(''); setSelected(null); setSearch(''); setError('') }} /><button className="button primary full" disabled={!file || busy || !capability.available} onClick={() => void recognize()}>{busy ? <LoaderCircle className="spin" size={16} /> : <Sparkles size={16} />}{busy ? 'Analisi locale…' : 'Proponi l’alimento'}</button><p className="voice-hint">{capability.message}</p></div>
     <div className="scanner-results">
       <div className="scanner-no-estimates"><strong>Nessuna stima da pixel</strong><span>Peso e kcal della porzione non vengono dedotti dalla foto. Le kcal/100 g arrivano solo dalla voce CIQUAL confermata.</span></div>
       {label && <p className="voice-feedback notice">Suggerimento visivo: <strong>{label}</strong>{uncertain ? ' · incerto, richiede conferma' : ''}</p>}
       {error && <p className="voice-feedback error" role="alert">{error}</p>}
       <div className="search-field"><Search size={17} /><input value={search} onChange={event => { setSearch(event.target.value); setSelected(null) }} placeholder="Conferma o cerca manualmente…" aria-label="Cerca alimento riconosciuto" /></div>
       <div className="scanner-food-candidates">{shown.map(food => <button className={selected?.id === food.id ? 'selected' : ''} key={food.id} onClick={() => setSelected(food)}><span><strong>{food.name}</strong><small>{food.note} · {food.source}</small></span><b>{food.per100g.kcal} kcal / 100 g</b></button>)}</div>
-      {!shown.length && (label || search) && <EmptyState icon={<Search size={25} />} title="Nessuna voce affidabile" text="Non creo un alimento inventato. Prova un nome diverso o aggiungi un alimento personale completo." />}
+      {showingBase && <p className="scanner-base-warning" role="note"><strong>Ingrediente base, non equivalente.</strong> I valori della patata non sono quelli di “{label}”. Per registrare l’alimento riconosciuto, cancella la ricerca e crea una voce personale con una fonte verificata.</p>}
+      {!shown.length && unmatchedName && <div className="scanner-unmatched"><EmptyState icon={<Search size={25} />} title={`“${unmatchedName}” non è nel catalogo`} text="Nessun valore viene inventato o copiato da un ingrediente crudo. Puoi creare una voce personale oppure cercare manualmente un ingrediente base." /><div className="scanner-unmatched-actions"><button className="button secondary" onClick={createPersonal}><Plus size={16} />Crea “{unmatchedName}” come personale</button>{baseQuery && <button className="button secondary" onClick={() => { setSearch(baseQuery); setSelected(null) }}><Search size={16} />Cerca patata · non equivalente</button>}</div></div>}
       <button className="button primary full" disabled={!selected} onClick={() => selected && onIdentified(selected)}><Check size={16} />Conferma e mostra nel database</button>
     </div>
   </div>

@@ -85,6 +85,12 @@ test('foto: un suggerimento generico trova il petto di pollo CIQUAL', () => {
   assert.equal(matches[0]?.id, 'ciqual-36017')
 })
 
+test('foto: French fries non viene assimilato alla patata cruda, ma trova un personale omonimo', () => {
+  assert.deepEqual(scanner.matchFoodCandidates('French fries', catalog.ciqualFoods), [])
+  const personal = { ...catalog.ciqualFoods[0], id: 'custom-fries', name: 'French fries', isPublic: false, isLegacy: false }
+  assert.equal(scanner.matchFoodCandidates('French fries', [...catalog.ciqualFoods, personal])[0]?.id, 'custom-fries')
+})
+
 test('foto: etichette incomprensibili e voci legacy non generano candidati', () => {
   assert.deepEqual(scanner.matchFoodCandidates('oggetto sconosciuto', catalog.ciqualFoods), [])
   const legacy = { ...catalog.ciqualFoods[0], id: 'legacy-chicken', name: 'Pollo con mandorle', isLegacy: true }

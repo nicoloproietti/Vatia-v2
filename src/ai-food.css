@@ -46,6 +46,11 @@
 .scanner-food-candidates strong { font-size: 10px; line-height: 1.4; }
 .scanner-food-candidates small { margin-top: 4px; color: var(--muted); font-size: 8px; line-height: 1.4; }
 .scanner-food-candidates b { flex: 0 0 auto; color: var(--primary); font-size: 9px; white-space: nowrap; }
+.scanner-unmatched { display: grid; gap: 9px; }
+.scanner-unmatched-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.scanner-unmatched-actions .button { height: auto; min-height: 40px; padding: 9px 11px; line-height: 1.4; white-space: normal; }
+.scanner-base-warning { margin: 0; padding: 10px 11px; border: 1px solid #ead9ae; border-radius: 8px; background: #fff9ea; color: #806020; font-size: 9px; line-height: 1.5; }
+.dark .scanner-base-warning { border-color: #64512b; background: #40351d; color: #e5ba65; }
 .spin { animation: ai-food-spin 1s linear infinite; }
 @keyframes ai-food-spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {
@@ -56,4 +61,6 @@
 @media (max-width: 440px) {
   .scan-nutrients { grid-template-columns: 1fr; }
   .scanner-food-candidates > button { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .scanner-unmatched-actions { grid-template-columns: 1fr; }
+  .scanner-unmatched-actions .button:only-child { grid-column: 1 / -1; }
 }
