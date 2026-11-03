@@ -91,4 +91,57 @@ test('foto: etichette incomprensibili e voci legacy non generano candidati', () 
   assert.ok(!scanner.matchFoodCandidates('pollo', [legacy]).some(food => food.id === 'legacy-chicken'))
 })
 
+test('foto: accetta JSON valido, JSON racchiuso in testo e una semplice etichetta', () => {
+  assert.deepEqual(scanner.parseFoodPhotoResponse('{"label":"Chicken breast","uncertain":false}'), { label: 'Chicken breast', uncertain: false })
+  assert.deepEqual(scanner.parseFoodPhotoResponse('```json\n{"label":"Banana","uncertain":true}\n```'), { label: 'Banana', uncertain: true })
+  assert.deepEqual(scanner.parseFoodPhotoResponse('French fries'), { label: 'French fries', uncertain: true })
+  assert.deepEqual(scanner.parseFoodPhotoResponse('{"label":null,"uncertain":true}'), { label: null, uncertain: true })
+})
+
+test('foto: risposte tecniche non JSON diventano un errore comprensibile', () => {
+  assert.throws(() => scanner.parseFoodPhotoResponse('On-device model response is unavailable'), /cerca l’alimento manualmente/)
+  assert.throws(() => scanner.parseFoodPhotoResponse('{"label":'), /foto più nitida/)
+})
+
+test('foto: il browser simulato esegue un solo retry e chiude sempre la sessione', async () => {
+  const replies = ['On-device model response is unavailable', 'French fries']
+  let calls = 0
+  let destroyed = false
+  globalThis.window = {
+    LanguageModel: {
+      availability: async () => 'available',
+      create: async () => ({
+        prompt: async () => replies[calls++],
+        destroy: () => { destroyed = true },
+      }),
+    },
+  }
+  const result = await scanner.recognizeFoodPhoto(new File(['test'], 'food.jpg', { type: 'image/jpeg' }))
+  assert.deepEqual(result, { label: 'French fries', uncertain: true })
+  assert.equal(calls, 2)
+  assert.equal(destroyed, true)
+  delete globalThis.window
+})
+
+test('foto: un modello fittizio che ripete il prompt viene rilevato senza retry', async () => {
+  let calls = 0
+  let destroyed = false
+  globalThis.window = {
+    LanguageModel: {
+      availability: async () => 'available',
+      create: async () => ({
+        prompt: async () => { calls += 1; return 'On-device model is not available in Chromium, this API is just echoing back the input' },
+        destroy: () => { destroyed = true },
+      }),
+    },
+  }
+  await assert.rejects(
+    () => scanner.recognizeFoodPhoto(new File(['test'], 'food.jpg', { type: 'image/jpeg' })),
+    /non esegue realmente il modello visivo/,
+  )
+  assert.equal(calls, 1)
+  assert.equal(destroyed, true)
+  delete globalThis.window
+})
+
 console.log('Nota: parser e abbinamenti sono verificati; accuratezza OCR/visione su immagini reali richiede un benchmark separato.')

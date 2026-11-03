@@ -94,10 +94,38 @@ export async function inspectLocalFoodVision() {
   try {
     const status = await model.availability(visionOptions)
     if (status === 'unavailable') return { available: false, message: 'Il modello visivo locale non è disponibile su questo dispositivo.' }
-    return { available: true, message: status === 'available' ? 'Modello visivo locale pronto.' : 'Il primo utilizzo può richiedere il download del modello locale.' }
+    return { available: true, message: status === 'available' ? 'Il browser dichiara supporto visivo locale; la risposta effettiva viene verificata durante l’analisi.' : 'Il primo utilizzo può richiedere il download del modello locale.' }
   } catch {
     return { available: false, message: 'Non è stato possibile verificare il modello visivo locale.' }
   }
+}
+
+function cleanVisionLabel(value: unknown) {
+  if (typeof value !== 'string') return null
+  const label = value.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').replace(/^['"]|['"]$/g, '').trim()
+  if (!label || label.length > 60 || /[\n\r{}[\]]/.test(label)) return null
+  if (/^(?:on-device|unknown|null|none|unclear|error|sorry)\b/i.test(label)) return null
+  if (!/^[\p{L}\p{M}][\p{L}\p{M}\s'-]*$/u.test(label)) return null
+  return label
+}
+
+export function parseFoodPhotoResponse(response: string): { label: string | null; uncertain: boolean } {
+  let parsed: { label?: unknown; uncertain?: unknown } | null = null
+  try {
+    parsed = JSON.parse(response) as { label?: unknown; uncertain?: unknown }
+  } catch {
+    const embedded = response.match(/\{[\s\S]*\}/)?.[0]
+    if (embedded) {
+      try { parsed = JSON.parse(embedded) as { label?: unknown; uncertain?: unknown } } catch { /* Gestito sotto con un messaggio non tecnico. */ }
+    }
+  }
+  if (parsed && typeof parsed === 'object') {
+    const label = cleanVisionLabel(parsed.label)
+    if (label || parsed.label === null) return { label, uncertain: parsed.uncertain !== false }
+  }
+  const plainLabel = cleanVisionLabel(response)
+  if (plainLabel) return { label: plainLabel, uncertain: true }
+  throw new Error('Il modello visivo non ha restituito un alimento leggibile. Riprova con una foto più nitida oppure cerca l’alimento manualmente.')
 }
 
 export async function recognizeFoodPhoto(image: File): Promise<{ label: string | null; uncertain: boolean }> {
@@ -114,8 +142,16 @@ export async function recognizeFoodPhoto(image: File): Promise<{ label: string |
       type: 'object', additionalProperties: false, required: ['label', 'uncertain'],
       properties: { label: { type: ['string', 'null'] }, uncertain: { type: 'boolean' } },
     } })
-    const parsed = JSON.parse(response) as { label?: unknown; uncertain?: unknown }
-    return { label: typeof parsed.label === 'string' && parsed.label.trim() ? parsed.label.trim() : null, uncertain: parsed.uncertain !== false }
+    if (/On-device model is not available in Chromium|API is just echoing back the input/i.test(response)) {
+      throw new Error('Questo browser non esegue realmente il modello visivo: ha restituito il prompt senza analizzare l’immagine. Usa la ricerca manuale oppure un browser con AI visiva locale effettivamente disponibile.')
+    }
+    try {
+      return parseFoodPhotoResponse(response)
+    } catch {
+      // Alcuni modelli locali ignorano il vincolo JSON: un solo retry testuale, sempre sul dispositivo.
+      const retry = await session.prompt('Based only on the image above, return ONLY the main generic food name in English, or UNKNOWN if unclear. No explanation, JSON, brand, weight or nutrients.')
+      return parseFoodPhotoResponse(retry)
+    }
   } finally {
     session.destroy()
   }
