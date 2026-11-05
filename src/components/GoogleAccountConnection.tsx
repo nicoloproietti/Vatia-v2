@@ -4,11 +4,12 @@ import { AlertCircle, CalendarDays, CheckCircle2, Link2, LoaderCircle, RefreshCw
 import type { Appointment } from '../types'
 import { connectGoogleAccount, disconnectGoogleAccount, googleAccountStatus, googleCalendarConfigured, syncGoogleAccount, type GoogleAccountStatus } from '../lib/calendar'
 
-export default function GoogleAccountConnection({ session, appointments, reload, notify }: {
+export default function GoogleAccountConnection({ session, appointments, reload, notify, onStatusChange }: {
   session: Session | null
   appointments: Appointment[]
   reload: (background?: boolean) => Promise<void>
   notify: (message: string) => void
+  onStatusChange?: (connected: boolean) => void
 }) {
   const [status, setStatus] = useState<GoogleAccountStatus | null>(null)
   const [busy, setBusy] = useState<'connect' | 'sync' | 'disconnect' | ''>('')
@@ -52,6 +53,8 @@ export default function GoogleAccountConnection({ session, appointments, reload,
     })
     return () => { active = false }
   }, [userId])
+
+  useEffect(() => { onStatusChange?.(Boolean(status?.connected)) }, [onStatusChange, status?.connected])
 
   useEffect(() => {
     if (!status?.connected) return

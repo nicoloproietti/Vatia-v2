@@ -10,8 +10,10 @@ const invoiceTotal = (invoice: Pick<Invoice, 'amount' | 'enpab' | 'stamp'>) => i
 const money = (value: number) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(value)
 const addDays = (key: string, amount: number) => { const date = new Date(`${key}T12:00:00`); date.setDate(date.getDate() + amount); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` }
 
-export default function BillingView({ workspace, initialAppointment, onAppointmentHandled, notify }: { workspace: Workspace; initialAppointment?: Appointment | null; onAppointmentHandled: () => void; notify: (message: string) => void }) {
-  const [tab, setTab] = useState<'documents' | 'services' | 'report' | 'settings'>('documents')
+export type BillingTab = 'documents' | 'services' | 'report' | 'settings'
+
+export default function BillingView({ workspace, initialAppointment, initialTab = 'documents', onAppointmentHandled, notify }: { workspace: Workspace; initialAppointment?: Appointment | null; initialTab?: BillingTab; onAppointmentHandled: () => void; notify: (message: string) => void }) {
+  const [tab, setTab] = useState<BillingTab>(initialTab)
   const [editor, setEditor] = useState<Invoice | null>(null)
   const [serviceEditor, setServiceEditor] = useState<Service | null>(null)
   const [filter, setFilter] = useState('all')
@@ -37,6 +39,7 @@ export default function BillingView({ workspace, initialAppointment, onAppointme
     onAppointmentHandled()
   }, [onAppointmentHandled, workspace.invoices, workspace.patients, workspace.services])
 
+  useEffect(() => { setTab(initialTab) }, [initialTab])
   useEffect(() => {
     if (initialAppointment && !editor) newInvoice(initialAppointment)
   }, [editor, initialAppointment, newInvoice])

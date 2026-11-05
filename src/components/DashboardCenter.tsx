@@ -1,23 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import { ArrowRight, Banknote, BookOpen, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Columns3, EyeOff, GripVertical, Plus, ReceiptText, RotateCcw, Settings2, Sparkles, Trash2, UserRound, Users, Utensils } from 'lucide-react'
 import type { Workspace } from '../hooks/useWorkspace'
 import { activePlanFor, appointmentDateKey, formatDate, formatTime, formatToday, todayKey } from '../lib/clinical'
+import { buildOnboardingChecklist, persistOnboardingDismissed, readOnboardingDismissed } from '../lib/onboarding'
+import type { OnboardingStepId } from '../lib/onboarding'
 import type { Appointment, Page } from '../types'
 import { EmptyState, PatientAvatar } from './UI'
+import GoogleAccountConnection from './GoogleAccountConnection'
+import OnboardingChecklist from './OnboardingChecklist'
 import VatiaBuddy from './VatiaBuddy'
 
 const money = (value: number) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(value)
 const total = (invoice: Workspace['invoices'][number]) => invoice.amount * (invoice.enpab ? 1.04 : 1) + (invoice.stamp ? 2 : 0)
 
-type WidgetId = 'visits' | 'patients' | 'actions' | 'receivables' | 'schedule' | 'attention' | 'paths' | 'shortcuts'
+type WidgetId = 'onboarding' | 'visits' | 'patients' | 'actions' | 'receivables' | 'schedule' | 'attention' | 'paths' | 'shortcuts'
 type WidgetSize = 'small' | 'medium' | 'large' | 'full'
 type WidgetConfig = { id: WidgetId; size: WidgetSize; visible: boolean }
 
 const WIDGET_NAMES: Record<WidgetId, string> = {
-  visits: 'Visite di oggi', patients: 'Pazienti attivi', actions: 'Azioni aperte', receivables: 'Da incassare',
+  onboarding: 'Avvio guidato', visits: 'Visite di oggi', patients: 'Pazienti attivi', actions: 'Azioni aperte', receivables: 'Da incassare',
   schedule: 'La tua giornata', attention: 'Richiede attenzione', paths: 'Continuità dei percorsi', shortcuts: 'Azioni rapide',
 }
 const DEFAULT_LAYOUT: WidgetConfig[] = [
+  { id: 'onboarding', size: 'full', visible: true },
   { id: 'visits', size: 'small', visible: true }, { id: 'patients', size: 'small', visible: true },
   { id: 'actions', size: 'small', visible: true }, { id: 'receivables', size: 'small', visible: true },
   { id: 'schedule', size: 'medium', visible: true }, { id: 'attention', size: 'medium', visible: true },
@@ -29,14 +35,19 @@ function readLayout(owner: string): WidgetConfig[] {
   try {
     const stored = JSON.parse(localStorage.getItem(`vatia-dashboard-${owner}`) ?? '[]') as WidgetConfig[]
     const valid = stored.filter(item => item && item.id in WIDGET_NAMES && SIZES.includes(item.size)).map(item => ({ ...item, visible: item.visible !== false }))
-    return [...valid, ...DEFAULT_LAYOUT.filter(item => !valid.some(candidate => candidate.id === item.id))].map(item => ({ ...item }))
+    const missing = DEFAULT_LAYOUT.filter(item => !valid.some(candidate => candidate.id === item.id))
+    const onboarding = missing.find(item => item.id === 'onboarding')
+    const merged = onboarding ? [onboarding, ...valid, ...missing.filter(item => item.id !== 'onboarding')] : [...valid, ...missing]
+    return merged.map(item => ({ ...item }))
   } catch { return DEFAULT_LAYOUT.map(item => ({ ...item })) }
 }
 
-export default function DashboardCenter({ workspace, userName, layoutOwner, navigate, onSelectPatient, onNewPatient, onLoadDemo, onClearDemo }: { workspace: Workspace; userName: string; layoutOwner: string; navigate: (page: Page) => void; onSelectPatient: (id: string) => void; onNewPatient: () => void; onLoadDemo?: () => void; onClearDemo?: () => void }) {
+export default function DashboardCenter({ workspace, session, userName, layoutOwner, navigate, notify, onSelectPatient, onNewPatient, onImportPatients, onNewDiet, onOpenBilling, onLoadDemo, onClearDemo }: { workspace: Workspace; session: Session | null; userName: string; layoutOwner: string; navigate: (page: Page) => void; notify: (message: string) => void; onSelectPatient: (id: string) => void; onNewPatient: () => void; onImportPatients: () => void; onNewDiet: (patientId?: string) => void; onOpenBilling: (tab: 'settings' | 'services') => void; onLoadDemo?: () => void; onClearDemo?: () => void }) {
   const [layout, setLayout] = useState<WidgetConfig[]>(() => readLayout(layoutOwner))
   const [editing, setEditing] = useState(false)
   const [officeId, setOfficeId] = useState('all')
+  const [calendarConnected, setCalendarConnected] = useState(false)
+  const [onboardingDismissed, setOnboardingDismissed] = useState(() => readOnboardingDismissed(layoutOwner, localStorage))
   const dragged = useRef<WidgetId | null>(null)
   const today = todayKey()
   const effectiveOfficeId = officeId !== 'all' && workspace.offices.some(office => office.id === officeId && office.active) ? officeId : 'all'
@@ -48,7 +59,8 @@ export default function DashboardCenter({ workspace, userName, layoutOwner, navi
   const receivables = workspace.invoices.filter(invoice => invoice.status === 'Emessa')
   const missingDiary = activePatients.filter(patient => !workspace.diary.some(entry => entry.patientId === patient.id && entry.date >= (() => { const date = new Date(); date.setDate(date.getDate() - 6); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` })()))
   const hasDemo = workspace.patients.some(item => item.id.startsWith('demo-'))
-  const visible = layout.filter(item => item.visible)
+  const onboardingSteps = buildOnboardingChecklist({ cloud: Boolean(session), billingSettings: workspace.billingSettings, officeCount: workspace.offices.filter(office => office.active).length, serviceCount: workspace.services.filter(service => service.active).length, calendarConnected, patientCount: workspace.patients.length, dietCount: workspace.plans.length, inviteCount: workspace.patientInvites.length })
+  const visible = layout.filter(item => item.visible && (item.id !== 'onboarding' || !onboardingDismissed))
   const officeName = (appointment: Appointment) => workspace.offices.find(office => office.id === appointment.officeId)?.name
 
   useEffect(() => { localStorage.setItem(`vatia-dashboard-${layoutOwner}`, JSON.stringify(layout)) }, [layout, layoutOwner])
@@ -76,7 +88,25 @@ export default function DashboardCenter({ workspace, userName, layoutOwner, navi
     dragged.current = null
   }
 
+  const onboardingActions: Partial<Record<OnboardingStepId, () => void>> = {
+    studio: () => onOpenBilling('settings'),
+    office: () => navigate('sedi'),
+    services: () => onOpenBilling('services'),
+    patient: onNewPatient,
+    diet: () => onNewDiet(activePatients[0]?.id),
+    invite: () => {
+      const patient = activePatients.find(item => item.email) ?? activePatients[0]
+      if (patient) { onSelectPatient(patient.id); navigate('pazienti') } else onNewPatient()
+    },
+  }
+  function dismissOnboarding() {
+    persistOnboardingDismissed(layoutOwner, localStorage)
+    setOnboardingDismissed(true)
+  }
+  const onboarding = <OnboardingChecklist steps={onboardingSteps} actions={onboardingActions} onImport={onImportPatients} onDismiss={dismissOnboarding} googleConnection={<GoogleAccountConnection session={session} appointments={workspace.appointments} reload={workspace.reload} notify={notify} onStatusChange={setCalendarConnected} />} />
+
   const widgets: Record<WidgetId, React.ReactNode> = {
+    onboarding,
     visits: <article className="stat-card"><div className="stat-icon"><CalendarDays size={20} /></div><span>Visite di oggi</span><strong>{appointments.length}</strong><small>{appointments[0] ? `Prossima alle ${formatTime(appointments[0].startsAt)}` : 'Agenda libera'}</small></article>,
     patients: <article className="stat-card"><div className="stat-icon"><Users size={20} /></div><span>Pazienti attivi</span><strong>{activePatients.length}</strong><small>{missingDiary.length} senza dati recenti</small></article>,
     actions: <article className="stat-card"><div className="stat-icon"><CheckCircle2 size={20} /></div><span>Azioni aperte</span><strong>{tasks.length + drafts.length}</strong><small>{tasks.length} follow-up · {drafts.length} bozze</small></article>,
@@ -89,7 +119,7 @@ export default function DashboardCenter({ workspace, userName, layoutOwner, navi
 
   return <>
     <section className="page-heading"><div><span className="eyebrow">{formatToday(new Date())}</span><h1>Buongiorno, {userName}.</h1><p>Tutto lo studio in una vista: il prossimo passo è sempre chiaro.</p></div><div className="heading-actions">{workspace.offices.some(office => office.active) && <select className="period-select" aria-label="Filtra dashboard per sede" value={effectiveOfficeId} onChange={event => setOfficeId(event.target.value)}><option value="all">Tutte le sedi</option>{workspace.offices.filter(office => office.active).map(office => <option key={office.id} value={office.id}>{office.name}</option>)}</select>}{hasDemo && onClearDemo && <button className="button secondary" onClick={onClearDemo}><Trash2 size={15} />Rimuovi demo</button>}{workspace.patients.length > 0 && <button className={`button ${editing ? 'primary' : 'secondary'}`} onClick={() => setEditing(!editing)}>{editing ? <Check size={16} /> : <Settings2 size={16} />}{editing ? 'Fine' : 'Personalizza'}</button>}<button className="button secondary" onClick={() => navigate('calendario')}><Plus size={16} />Appuntamento</button><button className="button primary" onClick={onNewPatient}><Plus size={16} />Nuovo paziente</button></div></section>
-    {!workspace.patients.length ? <section className="panel studio-onboarding"><div><span className="eyebrow">IL TUO STUDIO, SUBITO OPERATIVO</span><h2>Dal primo paziente al follow-up, senza passaggi dispersi.</h2><p>Anagrafica, anamnesi, piano, agenda e amministrazione condividono gli stessi dati. Inizia con un percorso reale oppure esplora una demo completamente modificabile.</p><div className="heading-actions"><button className="button primary" onClick={onNewPatient}>Crea il primo paziente<ArrowRight size={16} /></button>{onLoadDemo && <button className="button secondary" onClick={onLoadDemo}><Sparkles size={16} />Esplora con dati demo</button>}</div></div><div className="buddy-onboarding"><VatiaBuddy size={145} /><span>Sono Vatia. Ti aiuto a tenere tutto in ordine.</span></div></section> : <>
+    {!workspace.patients.length ? <>{!onboardingDismissed && onboarding}<section className="panel studio-onboarding"><div><span className="eyebrow">IL TUO STUDIO, SUBITO OPERATIVO</span><h2>Dal primo paziente al follow-up, senza passaggi dispersi.</h2><p>Anagrafica, anamnesi, piano, agenda e amministrazione condividono gli stessi dati. Inizia con un percorso reale oppure esplora una demo completamente modificabile.</p><div className="heading-actions"><button className="button primary" onClick={onNewPatient}>Crea il primo paziente<ArrowRight size={16} /></button>{onLoadDemo && <button className="button secondary" onClick={onLoadDemo}><Sparkles size={16} />Esplora con dati demo</button>}</div></div><div className="buddy-onboarding"><VatiaBuddy size={145} /><span>Sono Vatia. Ti aiuto a tenere tutto in ordine.</span></div></section></> : <>
       {editing && <section className="dashboard-customizer panel"><div><span className="eyebrow">LAYOUT PERSONALE</span><strong>Componi la tua giornata di lavoro</strong><p>Trascina i widget, cambia larghezza oppure usa le frecce. Le modifiche vengono salvate automaticamente.</p></div><div className="dashboard-customizer-actions"><button className="button secondary" onClick={() => setLayout(DEFAULT_LAYOUT.map(item => ({ ...item })))}><RotateCcw size={15} />Ripristina</button><button className="button primary" onClick={() => setEditing(false)}><Check size={15} />Salva e chiudi</button></div>{layout.some(item => !item.visible) && <div className="widget-gallery"><span>Widget nascosti</span>{layout.filter(item => !item.visible).map(item => <button key={item.id} onClick={() => update(item.id, { visible: true })}><Plus size={13} />{WIDGET_NAMES[item.id]}</button>)}</div>}</section>}
       <div className={`modular-dashboard ${editing ? 'is-editing' : ''}`}>
         {visible.map((item, index) => <div key={item.id} data-widget-id={item.id} className={`dashboard-widget widget-${item.size} ${editing ? 'editing' : ''}`} draggable={editing} onDragStart={event => { dragged.current = item.id; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', item.id) }} onDragOver={event => { if (editing) { event.preventDefault(); event.dataTransfer.dropEffect = 'move' } }} onDrop={event => { event.preventDefault(); reorder(item.id) }} onDragEnd={() => { dragged.current = null }}>

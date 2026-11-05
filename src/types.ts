@@ -1,6 +1,14 @@
 export type Page = 'oggi' | 'pazienti' | 'diario' | 'diete' | 'database' | 'insights' | 'calendario' | 'fatture' | 'sedi'
 export type InvoiceStatus = 'Bozza' | 'Emessa' | 'Pagata'
 
+export type PatientInvite = {
+  patientId: string
+  email: string
+  userId: string | null
+  invitedAt: string
+  claimedAt: string | null
+}
+
 export type Office = {
   id: string
   name: string

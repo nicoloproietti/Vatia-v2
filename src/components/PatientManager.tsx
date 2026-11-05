@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Activity, ArrowRight, BookOpen, CalendarPlus, Check, CheckCircle2, ClipboardList, Copy, FileText, LineChart as LineChartIcon, Mail, NotebookPen, Pencil, Phone, Plus, Ruler, Search, Send, Stethoscope, Target, Users } from 'lucide-react'
+import { Activity, ArrowRight, BookOpen, CalendarPlus, Check, CheckCircle2, ClipboardList, Copy, FileText, LineChart as LineChartIcon, Mail, NotebookPen, Pencil, Phone, Plus, Ruler, Search, Send, Stethoscope, Target, Upload, Users } from 'lucide-react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { Workspace } from '../hooks/useWorkspace'
 import type { Anamnesis, DietPlan, Measurement, Patient } from '../types'
@@ -18,6 +18,7 @@ type Props = {
   cloud: boolean
   onSelectPatient: (id: string) => void
   onNewPatient: () => void
+  onImportPatients: () => void
   onNewDiet: (patientId: string) => void
   onOpenDiet: (plan: DietPlan) => void
   onOpenDiary: (patientId: string) => void
@@ -26,7 +27,7 @@ type Props = {
   notify: (message: string) => void
 }
 
-export default function PatientManager({ workspace, selectedPatientId, cloud, onSelectPatient, onNewPatient, onNewDiet, onOpenDiet, onOpenDiary, onNewAppointment, onPreviewPatient, notify }: Props) {
+export default function PatientManager({ workspace, selectedPatientId, cloud, onSelectPatient, onNewPatient, onImportPatients, onNewDiet, onOpenDiet, onOpenDiary, onNewAppointment, onPreviewPatient, notify }: Props) {
   const [tab, setTab] = useState<Tab>('overview')
   const [query, setQuery] = useState('')
   const [measurementOpen, setMeasurementOpen] = useState(false)
@@ -38,15 +39,17 @@ export default function PatientManager({ workspace, selectedPatientId, cloud, on
   const patientPlans = workspace.plans.filter(plan => plan.patientId === selectedPatientId)
   const patientMeasurements = workspace.measurements.filter(item => item.patientId === selectedPatientId)
   const patientNotes = workspace.notes.filter(item => item.patientId === selectedPatientId)
+  const patientInvite = workspace.patientInvites.find(item => item.patientId === selectedPatientId)
+  const portalStatus = patientInvite?.claimedAt ? 'Portale attivo' : patientInvite ? 'Invito in sospeso' : 'Portale non attivo'
 
-  if (!workspace.patients.length) return <section className="panel"><EmptyState icon={<Users size={32} />} title="Il tuo studio è pronto" text="Crea il primo paziente: Vatia calcolerà il fabbisogno e preparerà il percorso senza dati dimostrativi." action={<button className="button primary" onClick={onNewPatient}><Plus size={16} />Crea il primo paziente</button>} /></section>
+  if (!workspace.patients.length) return <section className="panel"><EmptyState icon={<Users size={32} />} title="Il tuo studio è pronto" text="Crea il primo paziente oppure importa le anagrafiche esistenti. Potrai verificare ogni riga prima del salvataggio." action={<div className="heading-actions"><button className="button secondary" onClick={onImportPatients}><Upload size={16} />Importa CSV</button><button className="button primary" onClick={onNewPatient}><Plus size={16} />Crea il primo paziente</button></div>} /></section>
 
   return <>
-    <section className="page-heading"><div><span className="eyebrow">GESTIONE STUDIO</span><h1>Pazienti</h1><p>Tutto il percorso clinico, dalla prima visita al follow-up.</p></div><button className="button primary" onClick={onNewPatient}><Plus size={17} />Nuovo paziente</button></section>
+    <section className="page-heading"><div><span className="eyebrow">GESTIONE STUDIO</span><h1>Pazienti</h1><p>Tutto il percorso clinico, dalla prima visita al follow-up.</p></div><div className="heading-actions"><button className="button secondary" onClick={onImportPatients}><Upload size={16} />Importa CSV</button><button className="button primary" onClick={onNewPatient}><Plus size={17} />Nuovo paziente</button></div></section>
     <div className="patient-workspace">
       <aside className="panel patient-directory"><div className="search-field"><Search size={16} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Cerca paziente…" aria-label="Cerca paziente" /></div><div className="directory-count">{filtered.length} {filtered.length === 1 ? 'paziente' : 'pazienti'}</div><div className="directory-list">{filtered.map(item => <button key={item.id} className={item.id === selectedPatientId ? 'active' : ''} onClick={() => { onSelectPatient(item.id); setTab('overview') }}><PatientAvatar patient={item} /><div><strong>{item.name}</strong><span>{item.goal || 'Obiettivo da definire'}</span></div><ArrowRight size={14} /></button>)}</div></aside>
       {patient && <section className="patient-record">
-        <div className="panel patient-record-header"><PatientAvatar patient={patient} large /><div className="patient-identity"><div><h2>{patient.name}</h2><span className={`badge ${patient.status === 'Attivo' ? 'success' : 'neutral'}`}>{patient.status}</span></div><p>{patient.age} anni · {patient.goal || 'Obiettivo da definire'}</p><div className="patient-contacts">{patient.email && <span><Mail size={13} />{patient.email}</span>}{patient.phone && <span><Phone size={13} />{patient.phone}</span>}</div></div><div className="record-actions"><button className="button secondary" onClick={() => setReportOpen(true)}><FileText size={15} />Report</button><button className="button secondary" onClick={() => setInviteOpen(true)}><Send size={15} />Area paziente</button><button className="button secondary" onClick={() => setEditOpen(true)}><Pencil size={15} />Modifica</button><button className="button primary" onClick={() => onNewDiet(patient.id)}><Plus size={16} />Nuova dieta</button></div></div>
+        <div className="panel patient-record-header"><PatientAvatar patient={patient} large /><div className="patient-identity"><div><h2>{patient.name}</h2><span className={`badge ${patient.status === 'Attivo' ? 'success' : 'neutral'}`}>{patient.status}</span><span className={`badge ${patientInvite?.claimedAt ? 'success' : patientInvite ? 'warning' : 'neutral'}`}>{portalStatus}</span></div><p>{patient.age} anni · {patient.goal || 'Obiettivo da definire'}</p><div className="patient-contacts">{patient.email && <span><Mail size={13} />{patient.email}</span>}{patient.phone && <span><Phone size={13} />{patient.phone}</span>}</div></div><div className="record-actions"><button className="button secondary" onClick={() => setReportOpen(true)}><FileText size={15} />Report</button><button className="button secondary" onClick={() => setInviteOpen(true)}>{patientInvite?.claimedAt ? <CheckCircle2 size={15} /> : <Send size={15} />}Gestisci accesso</button><button className="button secondary" onClick={() => setEditOpen(true)}><Pencil size={15} />Modifica</button><button className="button primary" onClick={() => onNewDiet(patient.id)}><Plus size={16} />Nuova dieta</button></div></div>
         <div className="record-tabs" role="tablist">{tabs.map(item => <button role="tab" aria-selected={tab === item.id} key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)}>{item.label}{item.id === 'diets' && <b>{patientPlans.length}</b>}{item.id === 'notes' && <b>{patientNotes.filter(note => !note.done).length}</b>}</button>)}</div>
         {tab === 'overview' && <Overview patient={patient} workspace={workspace} onTab={setTab} onNewDiet={onNewDiet} onOpenDiet={onOpenDiet} onOpenDiary={onOpenDiary} onNewAppointment={onNewAppointment} />}
         {tab === 'anamnesis' && <AnamnesisForm patient={patient} workspace={workspace} notify={notify} />}

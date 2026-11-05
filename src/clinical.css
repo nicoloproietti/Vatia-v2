@@ -410,8 +410,8 @@ textarea:focus, select:focus, input:focus { outline-color: var(--primary); }
   .week-calendar { grid-template-columns: repeat(7, 145px); padding-bottom: 8px; }
 }
 @media (max-width: 980px) {
-  .patient-workspace { grid-template-columns: 1fr; }
-  .patient-directory { position: static; }
+  .patient-workspace { grid-template-columns: minmax(0, 1fr); }
+  .patient-directory { position: static; min-width: 0; }
   .directory-list { display: flex; max-height: none; overflow-x: auto; }
   .directory-list > button { min-width: 190px; }
   .builder-layout { grid-template-columns: 1fr; }

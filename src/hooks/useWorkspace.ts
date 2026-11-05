@@ -5,8 +5,9 @@ import { foods as legacyFoods } from '../data/foods'
 import { ciqualFoods, hasCompleteNutrients } from '../data/catalog'
 import { createEmptyDiet, dateKey, macroGrams, normalizeDietData, uid } from '../lib/clinical'
 import { optimizeItems, quickMealItems } from '../lib/dietEngine'
+import { revokePatientPortalAccess, sendPatientInvite } from '../lib/patientAccess'
 import { EMPTY_ANAMNESIS, EMPTY_BILLING_SETTINGS } from '../types'
-import type { Anamnesis, Appointment, BillingSettings, DiaryEntry, DietPlan, Food, Invoice, Measurement, Office, Patient, PatientNote, Service } from '../types'
+import type { Anamnesis, Appointment, BillingSettings, DiaryEntry, DietPlan, Food, Invoice, Measurement, Office, Patient, PatientInvite, PatientNote, Service } from '../types'
 
 function readStored<T>(key: string, fallback: T): T {
   try {
@@ -86,6 +87,8 @@ export function useWorkspace(session: Session | null) {
   const [error, setError] = useState('')
   const [billingWarning, setBillingWarning] = useState('')
   const [officeWarning, setOfficeWarning] = useState('')
+  const [inviteWarning, setInviteWarning] = useState('')
+  const [patientInvites, setPatientInvites] = useState<PatientInvite[]>([])
   const [patients, setPatients] = useStored<Patient[]>('vatia-v3-patients', [], cloud)
   const [customFoods, setCustomFoods] = useStored<Food[]>('vatia-v3-foods', [], cloud)
   const [plans, setPlans] = useStored<DietPlan[]>('vatia-v3-plans', [], cloud)
@@ -104,9 +107,9 @@ export function useWorkspace(session: Session | null) {
   ]
 
   const load = useCallback(async (background = false) => {
-    if (!supabase || !session) { setLoading(false); return }
+    if (!supabase || !session) { setPatientInvites([]); setInviteWarning(''); setLoading(false); return }
     if (!background) setLoading(true)
-    setError(''); setBillingWarning(''); setOfficeWarning('')
+    setError(''); setBillingWarning(''); setOfficeWarning(''); setInviteWarning('')
     try {
       const [patientResult, foodResult, dietResult, diaryResult, measurementResult, noteResult, appointmentResult] = await Promise.all([
         supabase.from('patients').select('*').order('created_at'),
@@ -141,6 +144,23 @@ export function useWorkspace(session: Session | null) {
         startsAt: row.starts_at, endsAt: row.ends_at, visitType: row.visit_type, notes: row.notes ?? '',
         createdAt: row.created_at ? String(row.created_at) : undefined, updatedAt: row.updated_at ? String(row.updated_at) : undefined,
       })))
+      try {
+        const inviteResult = await supabase
+          .from('patient_access')
+          .select('patient_id,email,user_id,invited_at,claimed_at')
+          .order('invited_at', { ascending: false })
+        if (inviteResult.error) throw inviteResult.error
+        setPatientInvites((inviteResult.data ?? []).map(row => ({
+          patientId: String(row.patient_id),
+          email: String(row.email),
+          userId: row.user_id ? String(row.user_id) : null,
+          invitedAt: String(row.invited_at),
+          claimedAt: row.claimed_at ? String(row.claimed_at) : null,
+        })))
+      } catch {
+        setPatientInvites([])
+        setInviteWarning('Gestione degli accessi paziente non disponibile. Verifica la configurazione Supabase.')
+      }
       try {
         const [serviceResult, invoiceResult, settingsResult] = await Promise.all([
           supabase.from('services').select('*').order('name'),
@@ -221,15 +241,19 @@ export function useWorkspace(session: Session | null) {
     if (!patient?.email) throw new Error('Aggiungi prima un’email al profilo del paziente.')
     if (!cloud || !supabase || !session) throw new Error('L’invito email richiede un account cloud; in modalità ospite usa l’anteprima.')
     return run(async () => {
-      const { error: linkError } = await supabase!.rpc('invite_patient_access', { target_patient: patientId, target_email: patient.email })
-      if (linkError) throw new Error(`Area paziente non configurata o invito non consentito: ${linkError.message}`)
-      const { error: emailError } = await supabase!.auth.signInWithOtp({
-        email: patient.email,
-        options: { emailRedirectTo: `${window.location.origin}${import.meta.env.BASE_URL}` },
+      await sendPatientInvite(supabase!, patient, `${window.location.origin}${import.meta.env.BASE_URL}`, invite => {
+        setPatientInvites(current => [invite, ...current.filter(item => item.patientId !== patientId)])
       })
-      if (emailError) throw emailError
       return patient.email
     }, () => { throw new Error('Invito disponibile solo con account cloud.') })
+  }
+
+  async function revokePatientAccess(patientId: string) {
+    if (!cloud || !supabase || !session) throw new Error('La revoca richiede un account cloud.')
+    return run(async () => {
+      await revokePatientPortalAccess(supabase!, patientId)
+      setPatientInvites(current => current.filter(item => item.patientId !== patientId))
+    }, () => { throw new Error('Revoca disponibile solo con account cloud.') })
   }
 
   async function addMeasurement(input: Omit<Measurement, 'id'>) {
@@ -566,9 +590,9 @@ export function useWorkspace(session: Session | null) {
   }
 
   return {
-    loading, error, setError, billingWarning, officeWarning, patients, foods, customFoods, plans, diary, measurements, notes, appointments, offices,
+    loading, error, setError, billingWarning, officeWarning, inviteWarning, patients, patientInvites, foods, customFoods, plans, diary, measurements, notes, appointments, offices,
     services, invoices, billingSettings,
-    createPatient, updatePatient, invitePatient, addMeasurement, addNote, toggleNote, saveDiet, deleteDiet, addDiaryEntry, addDiaryEntries,
+    createPatient, updatePatient, invitePatient, revokePatientAccess, addMeasurement, addNote, toggleNote, saveDiet, deleteDiet, addDiaryEntry, addDiaryEntries,
     updateDiaryEntry, removeDiaryEntry, addFood, updateFood, deleteFood, importFoods, addAppointment, updateAppointment, deleteAppointment, saveOffice, deleteOffice,
     saveService, deleteService, saveInvoice, deleteInvoice, saveBillingSettings, loadDemo, clearDemo, reload: load,
     emptyDiet: createEmptyDiet,

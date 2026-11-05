@@ -1,0 +1,127 @@
+/* Modal containment, including wide tables on small screens */
+.modal-backdrop { display: flex; align-items: center; justify-content: center; }
+.modal { min-width: 0; max-width: 100%; flex: 0 1 auto; }
+.modal-title { padding-right: 26px; }
+
+/* Patient access management */
+.invite-status-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.invite-status-row > span:last-child { color: var(--muted); font-size: 11px; }
+.invite-recipient small { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.invite-revoke-area { margin-top: 15px; padding-top: 12px; border-top: 1px solid var(--border); }
+.danger-text { display: inline-flex; align-items: center; gap: 6px; color: #b74238; }
+.danger-text:hover { color: #933329; }
+.button.danger { background: #b74238; color: #fff; }
+.button.danger:hover { background: #9e382f; }
+.invite-revoke-confirm { padding: 13px; border: 1px solid color-mix(in srgb, #b74238 25%, var(--border)); border-radius: 10px; background: color-mix(in srgb, #b74238 6%, var(--surface)); }
+.invite-revoke-confirm > strong { font-size: 12px; }
+.invite-revoke-confirm > p { margin: 6px 0 12px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.invite-revoke-confirm > div { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Guided setup widget */
+.guided-setup { margin-bottom: 20px; overflow: hidden; }
+.dashboard-widget > .guided-setup { margin-bottom: 0; }
+.guided-setup-heading { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 17px; padding: 22px 24px 17px; }
+.guided-setup-buddy { display: grid; place-items: center; width: 66px; height: 66px; border-radius: 18px; background: var(--primary-soft); }
+.guided-setup-heading h2 { margin: 5px 0 4px; font-size: 20px; letter-spacing: -.45px; }
+.guided-setup-heading p { max-width: 720px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.guided-setup-progress { min-width: 65px; text-align: right; }
+.guided-setup-progress strong, .guided-setup-progress span { display: block; }
+.guided-setup-progress strong { color: var(--primary); font-size: 22px; font-variant-numeric: tabular-nums; }
+.guided-setup-progress span { margin-top: 2px; color: var(--muted); font-size: 10px; }
+.guided-progress-track { height: 3px; margin: 0 24px 13px; overflow: hidden; border-radius: 3px; background: var(--surface-hover); }
+.guided-progress-track i { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width .2s ease-out; }
+.guided-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; padding: 0 24px 15px; }
+.guided-step { display: grid; grid-template-columns: 29px minmax(0, 1fr) auto; align-items: center; gap: 11px; min-width: 0; padding: 14px 0; border-top: 1px solid var(--border); }
+.guided-step-index { display: grid; place-items: center; width: 27px; height: 27px; border: 1px solid var(--border); border-radius: 50%; color: var(--muted); font-size: 11px; font-weight: 700; }
+.guided-step.done .guided-step-index { border-color: transparent; background: var(--primary-soft); color: var(--primary); }
+.guided-step-copy { min-width: 0; }
+.guided-step-copy strong { display: block; font-size: 12px; }
+.guided-step-copy p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.guided-step.done .guided-step-copy strong { color: var(--muted); }
+.guided-step-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.guided-step-check { color: var(--primary); }
+.guided-calendar-connection { grid-column: 2 / -1; padding-top: 5px; }
+.guided-calendar-connection .google-account-card { margin: 0; background: var(--surface-soft); }
+
+/* CSV import */
+.patient-import-privacy { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 17px; padding: 13px; border-radius: 10px; background: var(--primary-soft); color: var(--primary); }
+.patient-import-privacy svg { flex: 0 0 auto; }
+.patient-import-privacy strong { display: block; color: var(--text); font-size: 12px; }
+.patient-import-privacy p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.patient-import-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.patient-file-picker { position: relative; overflow: hidden; }
+.patient-file-picker.disabled { opacity: .6; cursor: wait; }
+.patient-file-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.patient-file-picker:focus-within { outline: 2px solid var(--primary); outline-offset: 2px; }
+.patient-import-toolbar .text-button { display: inline-flex; align-items: center; gap: 6px; }
+.patient-import-help { margin: 12px 0 15px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.patient-file-name { display: flex; align-items: center; gap: 8px; margin: 12px 0; color: var(--primary); }
+.patient-file-name span { min-width: 0; flex: 1; overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.patient-file-name strong { color: var(--muted); font-size: 10px; font-weight: 550; }
+.patient-import-preview { margin-top: 15px; }
+.patient-import-summary { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 11px; }
+.patient-import-summary .badge { display: inline-flex; align-items: center; gap: 5px; }
+.patient-import-table { max-height: 390px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+.patient-import-table-head, .patient-import-row { display: grid; grid-template-columns: 42px minmax(130px, 1fr) minmax(145px, 1fr) minmax(190px, 1.35fr); gap: 12px; min-width: 620px; padding: 11px 13px; }
+.patient-import-table-head { position: sticky; top: 0; z-index: 1; background: var(--surface-soft); color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+.patient-import-row { align-items: start; border-top: 1px solid var(--border); font-size: 11px; }
+.patient-import-row.invalid { background: color-mix(in srgb, #c58727 5%, var(--surface)); }
+.patient-import-row > span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.patient-import-row strong, .patient-import-row small { display: block; }
+.patient-import-row small { margin-top: 4px; color: var(--muted); font-size: 9px; line-height: 1.45; overflow-wrap: anywhere; }
+.patient-import-row ul { margin: 0; padding-left: 15px; color: #a65d19; line-height: 1.5; }
+.import-row-valid { display: inline-flex; align-items: center; gap: 5px; color: var(--primary); font-weight: 650; }
+.patient-import-row .import-row-note { color: #92611e; }
+.patient-import-confirm { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 15px; }
+.patient-import-confirm p { max-width: 480px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.patient-import-confirm .button { flex: 0 0 auto; }
+.patient-import-result { padding: 15px 5px 4px; text-align: center; }
+.import-result-icon { display: grid; place-items: center; width: 58px; height: 58px; margin: 0 auto 13px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); }
+.import-result-icon.failed { background: color-mix(in srgb, #b74238 10%, var(--surface)); color: #b74238; }
+.patient-import-result h3 { margin: 0; font-size: 20px; }
+.patient-import-result > p { margin: 8px auto 17px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.import-result-errors { max-height: 220px; margin: 0 0 17px; padding: 0; overflow: auto; list-style: none; text-align: left; }
+.import-result-errors li { padding: 10px 12px; border-top: 1px solid var(--border); }
+.import-result-errors strong, .import-result-errors span { display: block; }
+.import-result-errors strong { font-size: 11px; }
+.import-result-errors span { margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.patient-import-result-actions { display: flex; justify-content: center; gap: 9px; }
+
+@media (max-width: 1100px) {
+  .guided-steps { grid-template-columns: 1fr; }
+  .page-heading { align-items: flex-start; flex-wrap: wrap; }
+  .page-heading > div:first-child { min-width: 0; }
+  .page-heading > .heading-actions { flex-wrap: wrap; max-width: 100%; }
+}
+@media (max-width: 600px) {
+  .patient-identity > div:first-child { flex-wrap: wrap; }
+  .record-actions { flex-wrap: wrap; }
+  .record-actions .button { flex: 1 1 140px; min-height: 44px; }
+  .guided-setup-heading { grid-template-columns: auto minmax(0, 1fr) auto; gap: 11px; padding: 18px 16px 14px; }
+  .guided-setup-buddy { width: 48px; height: 48px; border-radius: 14px; }
+  .guided-setup-buddy svg { width: 43px; height: 43px; }
+  .guided-setup-heading h2 { font-size: 17px; }
+  .guided-setup-heading p { font-size: 12px; }
+  .guided-setup-progress { display: none; }
+  .guided-progress-track { margin-right: 16px; margin-left: 16px; }
+  .guided-steps { padding: 0 16px 12px; }
+  .guided-step { grid-template-columns: 29px minmax(0, 1fr); }
+  .guided-step-copy strong { font-size: 13px; }
+  .guided-step-copy p { font-size: 12px; }
+  .guided-step-actions, .guided-step-check { grid-column: 2; justify-content: flex-start; }
+  .guided-step-actions .button { min-height: 44px; }
+  .guided-calendar-connection { grid-column: 1 / -1; }
+  .patient-import-toolbar { align-items: stretch; flex-direction: column; }
+  .patient-import-toolbar .button, .patient-import-toolbar .text-button { justify-content: center; min-height: 44px; }
+  .patient-import-help, .patient-import-privacy p { font-size: 12px; }
+  .patient-import-confirm { align-items: stretch; flex-direction: column; }
+  .patient-import-confirm p { font-size: 12px; }
+  .patient-import-confirm .button { min-height: 44px; }
+  .patient-import-result-actions { flex-direction: column-reverse; }
+  .patient-import-result-actions .button { min-height: 44px; }
+  .invite-revoke-confirm > div { flex-direction: column; }
+  .invite-revoke-confirm .button { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guided-progress-track i { transition: none; }
+}
