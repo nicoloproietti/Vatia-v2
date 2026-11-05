@@ -22,6 +22,7 @@
 .command-next .panel-header > svg { color: var(--primary); }
 .command-queue { padding: 0 12px 12px; }
 .command-queue > button { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 8px; border-radius: 9px; background: transparent; text-align: left; }
+.command-queue > button > div { flex: 1; min-width: 0; }
 .command-queue > button:hover { background: var(--surface-hover); }
 .queue-icon { width: 32px; height: 32px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 9px; background: var(--primary-soft); color: var(--primary); }
 .command-queue strong, .command-queue button div span { display: block; }
