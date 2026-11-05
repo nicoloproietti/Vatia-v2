@@ -151,10 +151,10 @@ kbd { padding: 2px 5px; border: 1px solid var(--border); border-radius: 4px; bac
 .patient-list { padding: 0 10px 10px; }
 .patient-row { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px; border-radius: 9px; background: transparent; text-align: left; }
 .patient-row:hover { background: var(--surface-hover); }
-.patient-main { flex: 1; min-width: 0; }
-.patient-main strong, .patient-main span { display: block; }
-.patient-main strong { font-size: 11px; }
-.patient-main span { overflow: hidden; margin-top: 4px; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.patient-row .patient-main { flex: 1; min-width: 0; }
+.patient-row .patient-main strong, .patient-row .patient-main span { display: block; }
+.patient-row .patient-main strong { font-size: 11px; }
+.patient-row .patient-main span { overflow: hidden; margin-top: 4px; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .adherence { width: 105px; }
 .adherence > span { color: var(--muted); font-size: 9px; }
 .adherence > div { height: 4px; margin-top: 6px; border-radius: 4px; background: var(--surface-hover); }

@@ -3,11 +3,13 @@ import type { Session } from '@supabase/supabase-js'
 import { AlertCircle, ArrowRight, BarChart3, BookOpen, Building2, CalendarDays, Check, ChevronDown, ClipboardCheck, Copy, Database, LayoutDashboard, Leaf, LogOut, Menu, Moon, Plus, ReceiptText, Sun, Trash2, Users, Utensils, X, type LucideIcon } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { useWorkspace } from './hooks/useWorkspace'
+import { usePatientAccess } from './hooks/usePatientAccess'
 import type { Appointment, DietPlan, Page, Patient } from './types'
 import { createEmptyDiet, formatDate, uid } from './lib/clinical'
 import AuthScreen from './components/AuthScreen'
 import NewPatientWizard from './components/NewPatientWizard'
 import PatientManager from './components/PatientManager'
+import PatientPortal from './components/PatientPortal'
 import DietBuilder from './components/DietBuilder'
 import DatabaseView from './components/DatabaseView'
 import DashboardCenter from './components/DashboardCenter'
@@ -43,6 +45,7 @@ export default function App() {
   const [guest, setGuest] = useState(() => localStorage.getItem('vatia-v2-guest') === 'true')
   const [page, setPage] = useState<Page>('oggi')
   const [selectedPatientId, setSelectedPatientId] = useState('')
+  const [patientPreviewId, setPatientPreviewId] = useState('')
   const [agendaOfficeId, setAgendaOfficeId] = useState('all')
   const [activePlan, setActivePlan] = useState<DietPlan | null>(null)
   const [billingAppointment, setBillingAppointment] = useState<Appointment | null>(null)
@@ -51,6 +54,7 @@ export default function App() {
   const [mobileNav, setMobileNav] = useState(false)
   const [dark, setDark] = useState(() => localStorage.getItem('vatia-v2-dark') === 'true')
   const [toast, setToast] = useState('')
+  const patientAccess = usePatientAccess(session)
   const workspace = useWorkspace(session)
   const effectivePatientId = workspace.patients.some(patient => patient.id === selectedPatientId) ? selectedPatientId : workspace.patients[0]?.id ?? ''
   const selectedPatient = workspace.patients.find(patient => patient.id === effectivePatientId)
@@ -96,8 +100,10 @@ export default function App() {
     } catch { /* errore mostrato nell’area di lavoro */ }
   }
 
-  if (authLoading || (session && workspace.loading)) return <main className="auth-shell app-shell"><div className="auth-loading"><div className="brand-mark"><Leaf size={23} /></div><strong>Vatia</strong><span>Sto preparando il tuo spazio di lavoro…</span></div></main>
+  if (authLoading || patientAccess.loading || (session && workspace.loading)) return <main className="auth-shell app-shell"><div className="auth-loading"><div className="brand-mark"><Leaf size={23} /></div><strong>Vatia</strong><span>Sto preparando il tuo spazio di lavoro…</span></div></main>
   if (supabase && !session && !guest) return <AuthScreen onGuest={enterGuest} />
+  if (session && patientAccess.patientId) return <div className={`app-shell ${dark ? 'dark' : ''}`}><PatientPortal workspace={workspace} patientId={patientAccess.patientId} onExit={() => void supabase?.auth.signOut()} /></div>
+  if (guest && patientPreviewId) return <div className={`app-shell ${dark ? 'dark' : ''}`}><PatientPortal workspace={workspace} patientId={patientPreviewId} preview onExit={() => setPatientPreviewId('')} /></div>
 
   const userName = session?.user.user_metadata?.full_name?.split(' ')[0] || session?.user.email?.split('@')[0] || (guest ? 'Ospite' : 'Nutrizionista')
   const pageTitle = activePlan ? 'Builder dieta' : NAV.find(item => item.id === page)?.label ?? 'Oggi'
@@ -116,9 +122,9 @@ export default function App() {
       {workspace.error && <div className="workspace-error" role="alert"><AlertCircle size={17} /><span>{workspace.error}</span><button className="icon-button" onClick={() => workspace.setError('')} aria-label="Chiudi errore"><X size={16} /></button></div>}
       <div className={`content ${activePlan ? 'builder-content' : ''}`}>
         {page === 'oggi' && <DashboardCenter key={session?.user.id ?? 'guest'} workspace={workspace} userName={userName} layoutOwner={session?.user.id ?? 'guest'} navigate={navigate} onSelectPatient={setSelectedPatientId} onNewPatient={() => setNewPatientOpen(true)} onLoadDemo={guest && !session ? loadDemo : undefined} onClearDemo={guest && !session ? clearDemo : undefined} />}
-        {page === 'pazienti' && <PatientManager workspace={workspace} selectedPatientId={effectivePatientId} onSelectPatient={setSelectedPatientId} onNewPatient={() => setNewPatientOpen(true)} onNewDiet={newDiet} onOpenDiet={openDiet} onOpenDiary={openDiary} onNewAppointment={() => navigate('calendario')} notify={notify} />}
+        {page === 'pazienti' && <PatientManager workspace={workspace} selectedPatientId={effectivePatientId} cloud={Boolean(session)} onSelectPatient={setSelectedPatientId} onNewPatient={() => setNewPatientOpen(true)} onNewDiet={newDiet} onOpenDiet={openDiet} onOpenDiary={openDiary} onNewAppointment={() => navigate('calendario')} onPreviewPatient={setPatientPreviewId} notify={notify} />}
         {page === 'diario' && <MonitoringView workspace={workspace} onNewDiet={newDiet} notify={notify} />}
-        {page === 'diete' && (activePlan && selectedPatient ? <DietBuilder key={activePlan.id} workspace={workspace} plan={activePlan} patient={selectedPatient} onBack={() => { setActivePlan(null); setBuilderDirty(false) }} onDirtyChange={setBuilderDirty} notify={notify} /> : <DietsList workspace={workspace} onNewDiet={newDiet} onOpenDiet={openDiet} notify={notify} />)}
+        {page === 'diete' && (activePlan && selectedPatient ? <DietBuilder key={activePlan.id} workspace={workspace} plan={activePlan} patient={selectedPatient} learningOwner={session?.user.id ?? 'guest'} onBack={() => { setActivePlan(null); setBuilderDirty(false) }} onDirtyChange={setBuilderDirty} notify={notify} /> : <DietsList workspace={workspace} onNewDiet={newDiet} onOpenDiet={openDiet} notify={notify} />)}
         {page === 'database' && <DatabaseView workspace={workspace} notify={notify} />}
         {page === 'insights' && <StudioInsights workspace={workspace} navigate={navigate} onSelectPatient={setSelectedPatientId} />}
         {page === 'calendario' && <AgendaView workspace={workspace} initialPatientId={effectivePatientId} initialOfficeId={agendaOfficeId} onOfficeChange={setAgendaOfficeId} onSelectPatient={id => { setSelectedPatientId(id); navigate('pazienti') }} onBill={billAppointment} notify={notify} />}

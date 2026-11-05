@@ -1,0 +1,64 @@
+.report-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 15px; }
+.report-actions > span { display: flex; align-items: center; gap: 6px; color: var(--primary); font-size: 10px; }
+.patient-report-paper { color: var(--text); }
+.report-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 25px; padding: 6px 0 20px; border-bottom: 2px solid var(--primary); }
+.report-header > div:last-child { text-align: right; }
+.report-brand { display: block; margin-bottom: 8px; color: var(--primary); font-size: 25px; font-weight: 800; letter-spacing: -1px; }
+.report-header span { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .8px; }
+.report-header strong { display: block; margin-top: 5px; font-size: 18px; }
+.report-header p { margin: 5px 0 0; color: var(--muted); font-size: 9px; line-height: 1.55; }
+.report-appointment { display: flex; align-items: center; gap: 11px; margin: 18px 0 0; padding: 13px 15px; border-radius: 10px; background: var(--primary-soft); color: var(--primary); }
+.report-appointment span, .report-appointment strong { display: block; }
+.report-appointment span { color: var(--muted); font-size: 9px; }
+.report-appointment strong { margin-top: 4px; color: var(--text); font-size: 12px; }
+.report-appointment p { margin: 5px 0 0; color: var(--muted); font-size: 9px; }
+.report-section { padding: 20px 0; border-bottom: 1px solid var(--border); }
+.report-section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 13px; color: var(--primary); }
+.report-section-title h2 { margin: 0; color: var(--text); font-size: 14px; }
+.report-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.report-facts > div { min-width: 0; padding: 10px 11px; border-radius: 8px; background: var(--surface-soft); }
+.report-facts span, .report-facts strong, .report-facts small { display: block; }
+.report-facts span { color: var(--muted); font-size: 8px; }
+.report-facts strong { margin-top: 5px; font-size: 11px; overflow-wrap: anywhere; }
+.report-facts small { margin-top: 4px; color: var(--muted); font-size: 8px; line-height: 1.4; }
+.report-clinical-list { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; margin: 13px 0 0; }
+.report-clinical-list > div { display: grid; grid-template-columns: 95px 1fr; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 9px; }
+.report-clinical-list dt { color: var(--muted); }
+.report-clinical-list dd { margin: 0; white-space: pre-wrap; }
+.report-plan-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+.report-plan-heading strong, .report-plan-heading span { display: block; }
+.report-plan-heading strong { font-size: 12px; }
+.report-plan-heading span { margin-top: 4px; color: var(--muted); font-size: 9px; }
+.report-plan-heading > b { color: var(--primary); font-size: 17px; }
+.report-adherence { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.report-adherence > div { padding: 11px; border-radius: 8px; background: var(--surface-soft); }
+.report-adherence strong, .report-adherence span { display: block; }
+.report-adherence strong { font-size: 18px; }
+.report-adherence span { margin-top: 3px; color: var(--muted); font-size: 8px; }
+.report-adherence > .progress-track { grid-column: 1 / -1; }
+.report-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin-top: 12px; }
+.report-week > div { min-width: 0; padding: 8px 6px; border: 1px solid var(--border); border-radius: 7px; }
+.report-week span, .report-week strong, .report-week small { display: block; }
+.report-week span { color: var(--muted); font-size: 8px; }
+.report-week strong { margin-top: 5px; font-size: 9px; }
+.report-week small { margin-top: 3px; color: var(--muted); font-size: 7px; }
+.report-priorities { margin: 0; padding-left: 18px; color: var(--text); font-size: 10px; line-height: 1.7; }
+.report-notes { display: grid; gap: 8px; }
+.report-notes > div { padding: 10px 12px; border-left: 2px solid var(--primary); background: var(--surface-soft); }
+.report-notes span { color: var(--muted); font-size: 8px; }
+.report-notes p { margin: 4px 0 0; font-size: 10px; white-space: pre-wrap; }
+.report-empty { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.report-footer { padding-top: 18px; color: var(--muted); font-size: 8px; line-height: 1.55; }
+@media (max-width: 620px) {
+  .report-actions { align-items: stretch; flex-direction: column; }
+  .report-facts { grid-template-columns: 1fr 1fr; }
+  .report-clinical-list { grid-template-columns: 1fr; }
+  .report-week { grid-template-columns: 1fr 1fr; }
+}
+@media print {
+  .patient-report-paper { font-size: 10px; }
+  .patient-report-paper .report-section, .patient-report-paper .report-appointment, .patient-report-paper .report-facts > div { break-inside: avoid; }
+  .patient-report-paper .report-section { padding: 14px 0; }
+  .patient-report-paper .report-facts > div { border: 1px solid #e2e8f0; background: #f8fafc; }
+  .patient-report-paper .report-week { grid-template-columns: repeat(7, 1fr); }
+}

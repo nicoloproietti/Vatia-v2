@@ -216,6 +216,22 @@ export function useWorkspace(session: Session | null) {
     }, () => { setPatients(current => current.map(item => item.id === updated.id ? updated : item)); return updated })
   }
 
+  async function invitePatient(patientId: string) {
+    const patient = patients.find(item => item.id === patientId)
+    if (!patient?.email) throw new Error('Aggiungi prima un’email al profilo del paziente.')
+    if (!cloud || !supabase || !session) throw new Error('L’invito email richiede un account cloud; in modalità ospite usa l’anteprima.')
+    return run(async () => {
+      const { error: linkError } = await supabase!.rpc('invite_patient_access', { target_patient: patientId, target_email: patient.email })
+      if (linkError) throw new Error(`Area paziente non configurata o invito non consentito: ${linkError.message}`)
+      const { error: emailError } = await supabase!.auth.signInWithOtp({
+        email: patient.email,
+        options: { emailRedirectTo: `${window.location.origin}${import.meta.env.BASE_URL}` },
+      })
+      if (emailError) throw emailError
+      return patient.email
+    }, () => { throw new Error('Invito disponibile solo con account cloud.') })
+  }
+
   async function addMeasurement(input: Omit<Measurement, 'id'>) {
     return run(async () => {
       const { data, error } = await supabase!.from('measurements').insert({ patient_id: input.patientId, measured_on: input.date, weight: input.weight, waist: input.waist ?? null, hip: input.hip ?? null, arm: input.arm ?? null, thigh: input.thigh ?? null, body_fat: input.bodyFat ?? null, note: input.note || null }).select().single()
@@ -286,6 +302,16 @@ export function useWorkspace(session: Session | null) {
       const entries = inputs.map(input => ({ ...input, id: uid(), createdAt }))
       setDiary(current => [...current, ...entries]); return entries
     })
+  }
+
+  async function updateDiaryEntry(entry: DiaryEntry) {
+    if (!Number.isFinite(entry.grams) || entry.grams < 1) throw new Error('La quantità deve essere di almeno 1 g.')
+    return run(async () => {
+      const { error } = await supabase!.from('diary_entries').update({ grams: entry.grams, meal: entry.meal, note: entry.note || null }).eq('id', entry.id)
+      if (error) throw error
+      setDiary(current => current.map(item => item.id === entry.id ? entry : item))
+      return entry
+    }, () => { setDiary(current => current.map(item => item.id === entry.id ? entry : item)); return entry })
   }
 
   async function removeDiaryEntry(id: string) {
@@ -542,8 +568,8 @@ export function useWorkspace(session: Session | null) {
   return {
     loading, error, setError, billingWarning, officeWarning, patients, foods, customFoods, plans, diary, measurements, notes, appointments, offices,
     services, invoices, billingSettings,
-    createPatient, updatePatient, addMeasurement, addNote, toggleNote, saveDiet, deleteDiet, addDiaryEntry, addDiaryEntries,
-    removeDiaryEntry, addFood, updateFood, deleteFood, importFoods, addAppointment, updateAppointment, deleteAppointment, saveOffice, deleteOffice,
+    createPatient, updatePatient, invitePatient, addMeasurement, addNote, toggleNote, saveDiet, deleteDiet, addDiaryEntry, addDiaryEntries,
+    updateDiaryEntry, removeDiaryEntry, addFood, updateFood, deleteFood, importFoods, addAppointment, updateAppointment, deleteAppointment, saveOffice, deleteOffice,
     saveService, deleteService, saveInvoice, deleteInvoice, saveBillingSettings, loadDemo, clearDemo, reload: load,
     emptyDiet: createEmptyDiet,
   }
